@@ -52,7 +52,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, activeSection, setActiveSection 
     <>
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          
           <h1>Chemsphere</h1>
           <p>Logged in as: {username}</p>
         </div>

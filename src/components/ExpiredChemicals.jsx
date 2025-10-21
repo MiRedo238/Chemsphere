@@ -1,30 +1,14 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getExpiredChemicals } from '../services/chemicalService';
 import { csvService } from '../services/csvService';
+import { DatabaseContext } from '../contexts/DatabaseContext';
+
 
 const ExpiredChemicals = () => {
-  const [chemicals, setChemicals] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { chemicals, loading } = useContext(DatabaseContext);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    loadExpiredChemicals();
-  }, []);
-
-  const loadExpiredChemicals = async () => {
-    try {
-      setLoading(true);
-      const data = await getExpiredChemicals();
-      setChemicals(data);
-    } catch (err) {
-      setError('Failed to load expired chemicals');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const error = '';
 
   const handleExportCSV = () => {
     try {

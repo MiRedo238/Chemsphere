@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { ChevronLeft, FlaskConical } from 'lucide-react';
 import Autocomplete from './Autocomplete';
 import { createChemical } from '../services/api';
 
+import { DatabaseContext } from '../contexts/DatabaseContext';
+
 const AddChemical = ({ 
   setCurrentView, 
-  chemicals, 
-  updateChemicals, 
   addAuditLog, 
   userRole, 
   isModal, 
   onClose, 
   loading 
 }) => {
+  const { chemicals, setChemicals } = useContext(DatabaseContext);
   const [formData, setFormData] = useState({
     name: '',
     batch_number: '',

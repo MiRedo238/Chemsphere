@@ -5,14 +5,16 @@ import Autocomplete from './Autocomplete';
 import { logChemicalUsage, getChemicalUsageLogs, updateChemicalUsageLog, deleteChemicalUsageLog } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
+import { DatabaseContext } from '../contexts/DatabaseContext';
+
 const LogChemicalUsage = ({ 
-  chemicals, 
   setCurrentView, 
   addAuditLog, 
   userRole,
   currentUser,
   refreshData
 }) => {
+  const { chemicals } = useContext(DatabaseContext);
   const [selectedChemicals, setSelectedChemicals] = useState([]);
   const [user, setUser] = useState(currentUser?.name || '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);

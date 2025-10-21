@@ -1,13 +1,16 @@
 // src/components/ChemicalsList.jsx
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Search, Plus, Eye, Download, Upload } from 'lucide-react';
 import { safetyColors, ghsSymbols } from '../utils/data';
 import { filterChemicals, sortItems, exportToCSV, importFromCSV, normalizeGhsSymbols, getChemicalSortOptions } from '../utils/helpers';
 import { createChemical, importChemicals } from '../services/api';
+
 import AddChemical from './AddChemical';
 import Modal from './Modal';
+import { DatabaseContext } from '../contexts/DatabaseContext';
 
-const ChemicalsList = ({ chemicals, setSelectedItem, setCurrentView, userRole, updateChemicals, addAuditLog, refreshData }) => {
+const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog, refreshData }) => {
+  const { chemicals, setChemicals } = useContext(DatabaseContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('all');
   const [sortField, setSortField] = useState('name');

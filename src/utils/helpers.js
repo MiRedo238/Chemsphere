@@ -251,3 +251,40 @@ export const isNewItem = (dateString) => {
   
   return diffDays <= 7;
 };
+
+// Calculate urgency score for chemicals (lower score = more urgent)
+export const calculateChemicalUrgency = (chemical) => {
+  let score = 0;
+  
+  // Stock level urgency (0-50 points)
+  const stockRatio = chemical.current_quantity / (chemical.initial_quantity || 1);
+  if (stockRatio <= 0.1) score += 50;        // Very low stock (10% or less)
+  else if (stockRatio <= 0.25) score += 30;  // Low stock (25% or less)
+  else if (stockRatio <= 0.5) score += 15;   // Medium low stock (50% or less)
+  
+  // Expiration urgency (0-50 points)
+  const daysUntilExp = daysUntilExpiration(chemical.expiration_date);
+  if (daysUntilExp <= 7) score += 50;        // Expires in 1 week
+  else if (daysUntilExp <= 30) score += 40;  // Expires in 1 month
+  else if (daysUntilExp <= 90) score += 25;  // Expires in 3 months
+  else if (daysUntilExp <= 180) score += 10; // Expires in 6 months
+  
+  return score;
+};
+
+// Sort chemicals by urgency (most urgent first)
+export const sortChemicalsByUrgency = (chemicals) => {
+  return [...chemicals].sort((a, b) => {
+    const urgencyA = calculateChemicalUrgency(a);
+    const urgencyB = calculateChemicalUrgency(b);
+    
+    // Higher urgency score first (more urgent)
+    if (urgencyA > urgencyB) return -1;
+    if (urgencyA < urgencyB) return 1;
+    
+    // If same urgency, sort by expiration date (sooner first)
+    const expA = new Date(a.expiration_date || '9999-12-31');
+    const expB = new Date(b.expiration_date || '9999-12-31');
+    return expA - expB;
+  });
+};

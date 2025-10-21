@@ -33,25 +33,41 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let mounted = true;
+    let authInitialized = false;
 
     const initializeAuth = async () => {
       try {
         console.log('🔄 Initializing auth...');
-        // Set loading false by default to show login page
-        setLoading(false);
         
-        // Get current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Get current session with timeout
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 5000, 'timeout'));
+        
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        
+        if (result === 'timeout') {
+          console.warn('Auth initialization timeout');
+          if (mounted) {
+            setLoading(false);
+          }
+          return;
+        }
+
+        const { data: { session }, error: sessionError } = result;
         
         if (sessionError) {
           console.error('Session error:', sessionError);
-          setError(sessionError.message);
+          if (mounted) {
+            setError(sessionError.message);
+            setLoading(false);
+          }
           return;
         }
 
         console.log('📋 Session found:', session?.user?.email);
 
         if (session?.user && mounted) {
+          console.log('👤 User authenticated, fetching role...');
           try {
             const role = await getUserRole(session.user.id);
             console.log('🎭 User role:', role);
@@ -60,20 +76,22 @@ export const AuthProvider = ({ children }) => {
               setUserRole(role);
             }
           } catch (roleError) {
-            console.error('Role fetch error:', roleError);
+            console.error('Role fetch error, using default role:', roleError);
             if (mounted) {
               setUser(session.user);
               setUserRole('user');
             }
           }
         } else if (mounted) {
+          console.log('❌ No session found');
           setUser(null);
           setUserRole('user');
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
       } finally {
-        if (mounted) {
+        if (mounted && !authInitialized) {
+          authInitialized = true;
           setLoading(false);
           console.log('✅ Auth initialization complete');
         }
@@ -91,37 +109,51 @@ export const AuthProvider = ({ children }) => {
 
         try {
           if (session?.user) {
+            console.log('👤 Auth change - user present, fetching role...');
             try {
               const role = await getUserRole(session.user.id);
               console.log('🎭 New user role:', role);
               if (mounted) {
                 setUser(session.user);
                 setUserRole(role);
+                setError(null);
               }
             } catch (roleError) {
-              console.error('Role fetch error:', roleError);
+              console.error('Role fetch error in auth change:', roleError);
               if (mounted) {
                 setUser(session.user);
                 setUserRole('user');
               }
             }
           } else {
+            console.log('👤 Auth change - no user');
             setUser(null);
             setUserRole('user');
+            setError(null);
           }
         } catch (error) {
           console.error('Auth state change error:', error);
           setError(error.message);
         } finally {
-          if (mounted) {
+          if (mounted && !authInitialized) {
+            authInitialized = true;
             setLoading(false);
           }
         }
       }
     );
 
+    // Safety timeout - always set loading to false after 10 seconds
+    const safetyTimeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('⚠️ Auth loading timeout - forcing loading to false');
+        setLoading(false);
+      }
+    }, 10000);
+
     return () => {
       mounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
@@ -139,7 +171,6 @@ export const AuthProvider = ({ children }) => {
 
       if (error) throw error;
 
-      // Set user and role immediately after successful login
       setUser(data.user);
       const role = await getUserRole(data.user.id);
       setUserRole(role);

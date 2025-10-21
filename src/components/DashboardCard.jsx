@@ -1,6 +1,18 @@
 import React from 'react';
+import { sortChemicalsByUrgency } from '../utils/helpers'; // Adjust import path as needed
 
-const DashboardCard = ({ title, items = [], count, badgeType = '', loading = false, renderItem }) => {
+const DashboardCard = ({ 
+  title, 
+  items = [], 
+  count, 
+  badgeType = '', 
+  loading = false, 
+  renderItem,
+  sortByUrgency = false // New prop to enable urgency sorting
+}) => {
+  // Sort items by urgency if enabled and items are chemicals
+  const displayItems = sortByUrgency ? sortChemicalsByUrgency(items) : items;
+
   return (
     <div className="card">
       <div className="card-header">
@@ -12,10 +24,10 @@ const DashboardCard = ({ title, items = [], count, badgeType = '', loading = fal
       <ul className="card-list">
         {loading ? (
           <li>Loading...</li>
-        ) : items.length === 0 ? (
+        ) : displayItems.length === 0 ? (
           <li>No items to display</li>
         ) : (
-          items.map((item) => (
+          displayItems.map((item) => (
             <li key={item.id}>
               {renderItem(item)}
             </li>

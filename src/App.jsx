@@ -106,7 +106,7 @@ function DashboardContent() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [chemicals, setChemicals] = useState(mockChemicals);
   const [equipment, setEquipment] = useState(mockEquipment);
-  const [userRole] = useState('admin'); // Mock user role
+  const { userRole } = useAuth(); // Get real user role from AuthContext
 
   // Sync activeSection with currentView
   useEffect(() => {
@@ -373,12 +373,21 @@ function LoadingScreen() {
 
 // Main App Component with Routing
 function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, userRole } = useAuth();
+
+  console.log('🔍 App.jsx - Auth State:', { 
+    loading, 
+    user: user ? user.email : 'null', 
+    userRole 
+  });
 
   // Show loading screen while checking authentication
   if (loading) {
+    console.log('🔍 App.jsx - Showing loading screen');
     return <LoadingScreen />;
   }
+
+  console.log('🔍 App.jsx - Loading complete, rendering app');
 
   return (
     <Router>

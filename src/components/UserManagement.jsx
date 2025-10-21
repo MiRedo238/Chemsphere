@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { userService } from '../services/userService';
 import { auditService } from '../services/auditService';
+// If userService is migrated to Supabase, you can use DatabaseContext here
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);

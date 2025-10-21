@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { ChevronLeft, Microscope } from 'lucide-react';
 import Autocomplete from './Autocomplete';
 import { createEquipment } from '../services/api';
 
+import { DatabaseContext } from '../contexts/DatabaseContext';
+
 const AddEquipment = ({ 
   setCurrentView, 
-  equipment, 
-  updateEquipment, 
   addAuditLog, 
   userRole, 
   isModal, 
   onClose 
 }) => {
+  const { equipment, setEquipment } = useContext(DatabaseContext);
   const [formData, setFormData] = useState({
     name: '',
     model: '',

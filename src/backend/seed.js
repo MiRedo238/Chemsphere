@@ -1,3 +1,4 @@
+// WARNING: Backend-only file — do not import in client code.
 // src/backend/seed.js
 import { createUser, insertUserProfile } from './api/users.js'
 import { insertChemicals } from './api/chemicals.js'

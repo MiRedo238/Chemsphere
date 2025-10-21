@@ -1,30 +1,14 @@
 // src/components/AuditLogs.jsx
-import React, { useState, useEffect } from 'react';
+
+import React, { useContext } from 'react';
 import { ChevronLeft, FileText, User, Clock, FlaskConical, Microscope } from 'lucide-react';
 import { formatDate } from '../utils/helpers';
-import { getAuditLogs } from '../services/api';
+import { DatabaseContext } from '../contexts/DatabaseContext';
+
 
 const AuditLogs = ({ setCurrentView, userRole }) => {
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    fetchAuditLogs();
-  }, []);
-
-  const fetchAuditLogs = async () => {
-    try {
-      setLoading(true);
-      const logs = await getAuditLogs();
-      setAuditLogs(logs);
-    } catch (error) {
-      console.error('Failed to fetch audit logs:', error);
-      setError('Failed to load audit logs. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { auditLogs, loading } = useContext(DatabaseContext);
+  const error = '';
 
   const getActionIcon = (type) => {
     switch (type) {

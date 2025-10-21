@@ -1,13 +1,16 @@
 // src/components/EquipmentList.jsx
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Search, Plus, Eye, Download, Upload } from 'lucide-react';
 import { statusColors } from '../utils/data';
 import { filterEquipment, sortItems, exportToCSV, getEquipmentSortOptions } from '../utils/helpers';
 import AddEquipment from './AddEquipment';
 import Modal from './Modal';
 import { importEquipment } from '../services/api';
+import { DatabaseContext } from '../contexts/DatabaseContext';
 
-const EquipmentList = ({ equipment, setSelectedItem, setCurrentView, userRole, updateEquipment, addAuditLog }) => {
+
+const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog }) => {
+  const { equipment, setEquipment } = useContext(DatabaseContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortField, setSortField] = useState('name');

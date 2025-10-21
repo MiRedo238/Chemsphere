@@ -1,16 +1,11 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useContext } from 'react';
 import DashboardCard from './DashboardCard';
 import ActionButtons from './ActionButtons';
+import { DatabaseContext } from '../contexts/DatabaseContext';
 
-const Dashboard = ({ 
-  chemicals = [], 
-  equipment = [], 
-  updateChemicals, 
-  updateEquipment, 
-  addAuditLog, 
-  userRole,
-  refreshData 
-}) => {
+const Dashboard = ({ addAuditLog, userRole, refreshData }) => {
+  const { chemicals, equipment, setChemicals, setEquipment } = useContext(DatabaseContext);
   const [dashboardData, setDashboardData] = useState({
     nearExpiration: [],
     lowStock: [],
@@ -54,14 +49,14 @@ const Dashboard = ({
   };
 
   const handleAddChemical = (newChemical) => {
-    console.log('Chemical added:', newChemical);
+    // Optionally update chemicals state here if needed
     if (refreshData) {
       refreshData();
     }
   };
 
   const handleAddEquipment = (newEquipment) => {
-    console.log('Equipment added:', newEquipment);
+    // Optionally update equipment state here if needed
     if (refreshData) {
       refreshData();
     }
@@ -74,8 +69,8 @@ const Dashboard = ({
         onAddEquipment={handleAddEquipment}
         chemicals={chemicals}
         equipment={equipment}
-        updateChemicals={updateChemicals}
-        updateEquipment={updateEquipment}
+        updateChemicals={setChemicals}
+        updateEquipment={setEquipment}
         addAuditLog={addAuditLog}
         userRole={userRole}
         refreshData={refreshData}

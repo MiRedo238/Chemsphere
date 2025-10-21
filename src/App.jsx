@@ -13,6 +13,7 @@ import LogChemicalUsage from './components/LogChemicalUsage';
 import AuditLogs from './components/AuditLogs';
 import ExpiredChemicals from './components/ExpiredChemicals';
 import './App.css';
+import { DatabaseProvider } from './contexts/DatabaseContext';
 
 // Mock data - replace with Supabase queries
 const mockData = {
@@ -106,7 +107,7 @@ function DashboardContent() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [chemicals, setChemicals] = useState(mockChemicals);
   const [equipment, setEquipment] = useState(mockEquipment);
-  const { userRole } = useAuth(); // Get real user role from AuthContext
+  const { user, loading, userRole } = useAuth(); // Get real user role from AuthContext
 
   // Sync activeSection with currentView
   useEffect(() => {
@@ -390,43 +391,46 @@ function App() {
   console.log('🔍 App.jsx - Loading complete, rendering app');
 
   return (
-    <Router>
-      <div className="app">
-        <Routes>
-          {/* Public route - redirect to dashboard if already authenticated */}
-          <Route 
-            path="/login" 
-            element={
-              user ? <Navigate to="/dashboard" replace /> : <Login />
-            } 
-          />
-          
-          {/* Protected routes - redirect to login if not authenticated */}
-          <Route 
-            path="/dashboard" 
-            element={
-              user ? <DashboardContent /> : <Navigate to="/login" replace />
-            } 
-          />
-          
-          {/* Default route */}
-          <Route 
-            path="/" 
-            element={
-              <Navigate to={user ? "/dashboard" : "/login"} replace />
-            } 
-          />
-          
-          {/* Catch all route */}
-          <Route 
-            path="*" 
-            element={
-              <Navigate to={user ? "/dashboard" : "/login"} replace />
-            } 
-          />
-        </Routes>
-      </div>
-    </Router>
+    <DatabaseProvider>
+      <Router>
+        <div className="app">
+          <Routes>
+            {/* Public route - redirect to dashboard if already authenticated */}
+            <Route 
+              path="/login" 
+              element={
+                user ? <Navigate to="/dashboard" replace /> : <Login />
+              } 
+            />
+            
+            {/* Protected routes - redirect to login if not authenticated */}
+            <Route 
+              path="/dashboard" 
+              element={
+                user ? <DashboardContent /> : <Navigate to="/login" replace />
+              } 
+            />
+            
+            {/* Default route */}
+            <Route 
+              path="/" 
+              element={
+                <Navigate to={user ? "/dashboard" : "/login"} replace />
+              } 
+            />
+            
+            {/* Catch all route */}
+            <Route 
+              path="*" 
+              element={
+                <Navigate to={user ? "/dashboard" : "/login"} replace />
+              } 
+            />
+          </Routes>
+        </div>
+      </Router>
+    </DatabaseProvider>
+    
   );
 }
 

@@ -7,7 +7,6 @@ import { DatabaseContext } from '../contexts/DatabaseContext';
 
 const AddEquipment = ({ 
   setCurrentView, 
-  addAuditLog, 
   userRole, 
   isModal, 
   onClose 
@@ -21,8 +20,7 @@ const AddEquipment = ({
     location: '',
     purchase_date: '',
     warranty_expiration: '',
-    equipment_condition: 'Good',
-    assigned_user: ''
+    equipment_condition: 'Good'
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,7 +29,8 @@ const AddEquipment = ({
   const equipmentNames = [...new Set(equipment.map(e => e.name))].map(name => ({ name }));
   const equipmentModels = [...new Set(equipment.map(e => e.model))].map(model => ({ model }));
   const equipmentLocations = [...new Set(equipment.map(e => e.location))].map(location => ({ location }));
-  const equipmentUsers = [...new Set(equipment.map(e => e.assigned_user).filter(Boolean))].map(user => ({ assigned_user: user }));
+
+  const { user, addAuditLog } = useContext(DatabaseContext);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,7 +38,7 @@ const AddEquipment = ({
     setLoading(true);
 
     try {
-      const newEquipment = await createEquipment({
+        const newEquipment = await createEquipment({
         name: formData.name,
         model: formData.model || null,
         serial_id: formData.serial_id,
@@ -47,27 +46,27 @@ const AddEquipment = ({
         location: formData.location || null,
         purchase_date: formData.purchase_date || null,
         warranty_expiration: formData.warranty_expiration || null,
-        equipment_condition: formData.equipment_condition,
-        assigned_user: formData.assigned_user || null
-      });
-      
-      if (updateEquipment) {
-        updateEquipment(newEquipment);
-      }
-      
-      if (addAuditLog) {
-        addAuditLog({
-          type: 'equipment',
-          action: 'add',
-          itemName: newEquipment.name,
-          user: userRole,
-          timestamp: new Date().toISOString(),
-          details: { serialId: newEquipment.serial_id }
+        equipment_condition: formData.equipment_condition
         });
-      }
-      
-      // Reset form
-      setFormData({
+        
+        // Replace updateEquipment with setEquipment
+        if (setEquipment) {
+        setEquipment(prevEquipment => [...prevEquipment, newEquipment]);
+        }
+        
+        if (addAuditLog) {
+            addAuditLog({
+                type: 'equipment',
+                action: 'add',
+                item_name: newEquipment.name,
+                user_role: userRole,
+                user_name: user?.name || user?.username || 'System',
+                details: { serial_id: newEquipment.serial_id }
+            });
+            }
+        
+        // Reset form
+        setFormData({
         name: '',
         model: '',
         serial_id: '',
@@ -75,22 +74,21 @@ const AddEquipment = ({
         location: '',
         purchase_date: '',
         warranty_expiration: '',
-        equipment_condition: 'Good',
-        assigned_user: ''
-      });
-      
-      if (isModal && onClose) {
+        equipment_condition: 'Good'
+        });
+        
+        if (isModal && onClose) {
         onClose();
-      } else if (!isModal) {
+        } else if (!isModal) {
         setCurrentView('equipment');
-      }
+        }
     } catch (error) {
-      console.error('Failed to add equipment:', error);
-      setError(error.message || 'Failed to add equipment. Please try again.');
+        console.error('Failed to add equipment:', error);
+        setError(error.message || 'Failed to add equipment. Please try again.');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+    };
 
   const handleAutocompleteSelect = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -214,18 +212,6 @@ const AddEquipment = ({
                 onChange={(e) => setFormData({...formData, warranty_expiration: e.target.value})}
               />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Assigned User (Optional)</label>
-            <Autocomplete
-              value={formData.assigned_user}
-              onChange={(value) => setFormData(prev => ({ ...prev, assigned_user: value }))}
-              suggestions={equipmentUsers}
-              placeholder="Enter user name"
-              onSelect={(item) => handleAutocompleteSelect('assigned_user', item.assigned_user)}
-              field="assigned_user"
-            />
           </div>
 
           <div className="flex justify-center pt-4">

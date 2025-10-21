@@ -50,12 +50,23 @@ export async function getUsageLogs() {
   }
 }
 
-export async function getAuditLogs() {
-  try {
-    const { data, error } = await supabase.from('audit_logs').select('*')
-    if (error) throw error
-    return { data, error: null }
-  } catch (error) {
-    return { data: null, error }
-  }
-}
+export const getAuditLogs = async () => {
+  return await supabase
+    .from('audit_logs')
+    .select('*')
+    .order('created_at', { ascending: false });
+};
+
+export const addAuditLog = async (logData) => {
+  return await supabase
+    .from('audit_logs')
+    .insert([{
+      type: logData.type,
+      action: logData.action,
+      item_name: logData.item_name || logData.itemName,
+      user_role: logData.user_role || logData.userRole,
+      user_name: logData.user_name || logData.userName,
+      details: logData.details
+    }])
+    .select();
+};

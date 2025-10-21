@@ -1,14 +1,16 @@
 // src/components/AuditLogs.jsx
-
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { ChevronLeft, FileText, User, Clock, FlaskConical, Microscope } from 'lucide-react';
 import { formatDate } from '../utils/helpers';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
-
 const AuditLogs = ({ setCurrentView, userRole }) => {
-  const { auditLogs, loading } = useContext(DatabaseContext);
-  const error = '';
+  const { auditLogs, loading, fetchAuditLogs, error } = useContext(DatabaseContext);
+
+  // Fetch audit logs when component mounts
+  useEffect(() => {
+    fetchAuditLogs();
+  }, [fetchAuditLogs]);
 
   const getActionIcon = (type) => {
     switch (type) {
@@ -67,6 +69,12 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
           <FileText className="inline mr-2" />
           Audit Logs
         </h1>
+        <button 
+          onClick={fetchAuditLogs}
+          className="ml-auto bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          Refresh
+        </button>
       </div>
 
       {error && (
@@ -82,7 +90,7 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
       )}
 
       <div className="audit-log-container">
-        {auditLogs.length > 0 ? (
+        {auditLogs && auditLogs.length > 0 ? (
           <div className="space-y-2">
             {auditLogs.map(log => (
               <div key={log.id} className="audit-log-item">
@@ -92,19 +100,37 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
                     <span className={`audit-log-action ${getActionColor(log.action)}`}>
                       {log.action} {log.type}
                     </span>
-                    <span className="ml-2 font-medium">{log.itemName || log.details?.itemName}</span>
+                    <span className="ml-3 font-medium"> {log.item_name || log.itemName || log.details?.itemName}</span>
                   </div>
                   <div className="audit-log-timestamp">
                     <Clock size={14} className="inline mr-1" />
-                    {formatDate(log.timestamp || log.createdAt)}
+                    {formatDate(log.timestamp || log.created_at || log.createdAt)}
                   </div>
                 </div>
                 <div className="audit-log-details">
                   <User size={14} className="inline mr-1" />
-                  {log.user || log.userName} • 
-                  {log.details?.location && ` Location: ${log.details.location}`}
-                  {log.details?.quantity && ` • Quantity: ${log.details.quantity}`}
-                  {log.details && typeof log.details === 'string' && ` • ${log.details}`}
+                  {log.user_name || log.user || log.userName}
+                  {log.details && (
+                    <>
+                      {log.details.serial_id && ` • Serial: ${log.details.serial_id}`}
+                      {log.details.serialId && ` • Serial: ${log.details.serialId}`}
+                      {log.details.location && ` • Location: ${log.details.location}`}
+                      {log.details.quantity && ` • Quantity: ${log.details.quantity}`}
+                      {log.details.model && ` • Model: ${log.details.model}`}
+                      {log.details.status && ` • Status: ${log.details.status}`}
+                      {log.details.condition && ` • Condition: ${log.details.condition}`}
+                      {/* Add fallback for any other details */}
+                      {Object.keys(log.details).length > 0 && 
+                      !log.details.serial_id && 
+                      !log.details.serialId && 
+                      !log.details.location && 
+                      !log.details.quantity && 
+                      !log.details.model && 
+                      !log.details.status && 
+                      !log.details.condition && 
+                      ` • Details: ${JSON.stringify(log.details)}`}
+                    </>
+                  )}
                 </div>
               </div>
             ))}

@@ -20,6 +20,7 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { addAuditLog } = useContext(DatabaseContext);
 
   const isAdmin = userRole === 'admin';
 

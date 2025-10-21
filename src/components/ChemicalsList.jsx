@@ -9,7 +9,7 @@ import AddChemical from './AddChemical';
 import Modal from './Modal';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
-const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog, refreshData }) => {
+const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData }) => {
   const { chemicals, setChemicals } = useContext(DatabaseContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('all');
@@ -19,6 +19,8 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog,
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { addAuditLog } = useContext(DatabaseContext);
+  
 
   const isAdmin = userRole === 'admin';
 

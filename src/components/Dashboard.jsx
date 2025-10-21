@@ -4,7 +4,7 @@ import DashboardCard from './DashboardCard';
 import ActionButtons from './ActionButtons';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
-const Dashboard = ({ addAuditLog, userRole, refreshData }) => {
+const Dashboard = ({ userRole, refreshData }) => {
   const { chemicals, equipment, setChemicals, setEquipment } = useContext(DatabaseContext);
   const [dashboardData, setDashboardData] = useState({
     nearExpiration: [],
@@ -12,6 +12,7 @@ const Dashboard = ({ addAuditLog, userRole, refreshData }) => {
     expired: [],
     outOfStock: []
   });
+  const { addAuditLog } = useContext(DatabaseContext);
 
   useEffect(() => {
     calculateDashboardData();

@@ -9,6 +9,7 @@ const ExpiredChemicals = () => {
   const { chemicals, loading } = useContext(DatabaseContext);
   const navigate = useNavigate();
   const error = '';
+  const { addAuditLog } = useContext(DatabaseContext);
 
   const handleExportCSV = () => {
     try {

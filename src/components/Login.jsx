@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { LogIn, Eye, EyeOff, Beaker } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import './Login.css';
 
 const Login = () => {
   const { loginWithGoogle, loginWithCredentials, error, clearError, user } = useAuth();

@@ -1,6 +1,10 @@
 // App.jsx
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
 import { Plus, Menu, X } from 'lucide-react';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
 import Sidebar from './components/Sidebar';
 import ChemicalsList from './components/ChemicalsList';
 import EquipmentList from './components/EquipmentList';
@@ -94,7 +98,8 @@ const mockEquipment = [
   }
 ];
 
-function App() {
+// Main Dashboard Component (Protected)
+function DashboardContent() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard');
@@ -121,11 +126,6 @@ function App() {
       setCurrentView(sectionToViewMap[activeSection]);
     }
   }, [activeSection]);
-
-  useEffect(() => {
-    // TODO: Fetch user data from Supabase
-    // const { data: { user } } = await supabase.auth.getUser()
-  }, []);
 
   const updateChemicals = (updatedChemicals) => {
     setChemicals(updatedChemicals);
@@ -343,7 +343,6 @@ function App() {
                 <Plus size={20} />
                 Log chemical usage
               </button>
-          
             </>
           )}
           {currentView === 'log-usage' && (
@@ -359,6 +358,66 @@ function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+// Loading Component
+function LoadingScreen() {
+  return (
+    <div className="app-loading">
+      <div className="spinner"></div>
+      <p>Loading ChemSphere...</p>
+    </div>
+  );
+}
+
+// Main App Component with Routing
+function App() {
+  const { user, loading } = useAuth();
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  return (
+    <Router>
+      <div className="app">
+        <Routes>
+          {/* Public route - redirect to dashboard if already authenticated */}
+          <Route 
+            path="/login" 
+            element={
+              user ? <Navigate to="/dashboard" replace /> : <Login />
+            } 
+          />
+          
+          {/* Protected routes - redirect to login if not authenticated */}
+          <Route 
+            path="/dashboard" 
+            element={
+              user ? <DashboardContent /> : <Navigate to="/login" replace />
+            } 
+          />
+          
+          {/* Default route */}
+          <Route 
+            path="/" 
+            element={
+              <Navigate to={user ? "/dashboard" : "/login"} replace />
+            } 
+          />
+          
+          {/* Catch all route */}
+          <Route 
+            path="*" 
+            element={
+              <Navigate to={user ? "/dashboard" : "/login"} replace />
+            } 
+          />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 

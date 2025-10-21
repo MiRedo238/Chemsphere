@@ -1,5 +1,5 @@
 // src/components/LogChemicalUsage.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { ChevronLeft, FlaskConical, User, Calendar, Edit2, Save, X, Plus, Trash2 } from 'lucide-react';
 import Autocomplete from './Autocomplete';
 import { logChemicalUsage, getChemicalUsageLogs, updateChemicalUsageLog, deleteChemicalUsageLog } from '../services/api';
@@ -225,13 +225,6 @@ const LogChemicalUsage = ({
   return (
     <div>
       <div className="detail-header">
-        <button 
-          onClick={() => setCurrentView('dashboard')}
-          className="back-button"
-          disabled={loading}
-        >
-          <ChevronLeft className="back-icon" />
-        </button>
         <h1 className="detail-title">
           <FlaskConical className="inline mr-2" />
           Log Chemical Usage

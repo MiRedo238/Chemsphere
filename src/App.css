@@ -613,12 +613,25 @@ body {
 
 .detail-container {
   padding: 30px;
+  background: #f5f5f5;
+}
+
+.detail-container {
+  padding: 30px;
+  background: #f5f5f5;
 }
 
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 30px;
+}
+
+.detail-grid > div {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .detail-section-title {
@@ -1029,6 +1042,7 @@ body {
   .detail-header {
     padding: 15px 20px;
     flex-wrap: wrap;
+    width: 100vw;
   }
   
   .detail-container {

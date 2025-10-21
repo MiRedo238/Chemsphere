@@ -14,7 +14,7 @@ import AuditLogs from './components/AuditLogs';
 import ExpiredChemicals from './components/ExpiredChemicals';
 import './App.css';
 import { DatabaseProvider, DatabaseContext } from './contexts/DatabaseContext';
-
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Main Dashboard Component (Protected)
 function DashboardContent() {
@@ -219,12 +219,6 @@ function DashboardContent() {
               </button>
             </>
           )}
-          {currentView === 'log-usage' && (
-            <button className="add-btn" onClick={() => handleSetCurrentView('chemicals')}>
-              <Plus size={20} />
-              Back to chemicals
-            </button>
-          )}
         </header>
 
         <div className="content-area">
@@ -267,7 +261,8 @@ function App() {
     <DatabaseProvider>
       <Router>
         <div className="app">
-          <Routes>
+          <ErrorBoundary>
+            <Routes>
             {/* Public route - redirect to dashboard if already authenticated */}
             <Route 
               path="/login" 
@@ -300,6 +295,7 @@ function App() {
               } 
             />
           </Routes>
+          </ErrorBoundary>
         </div>
       </Router>
     </DatabaseProvider>

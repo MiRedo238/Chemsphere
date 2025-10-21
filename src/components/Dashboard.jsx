@@ -33,8 +33,9 @@ const Dashboard = ({ userRole, refreshData }) => {
     );
 
     const expired = chemicals.filter(chem => {
-      if (!chem.expiration_date) return false;
-      return new Date(chem.expiration_date) <= now;
+        const expirationDate = new Date(chem.expiration_date);
+        const today = new Date();
+        return expirationDate < today;
     });
 
     const outOfStock = chemicals.filter(chem => 

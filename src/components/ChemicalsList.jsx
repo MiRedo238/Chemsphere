@@ -21,20 +21,26 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
   const [loading, setLoading] = useState(false);
   const { addAuditLog } = useContext(DatabaseContext);
   
-
   const isAdmin = userRole === 'admin';
 
-  // Filter and sort chemicals
-  const filteredChemicals = filterChemicals(chemicals, searchTerm, filterClass, sortField, sortDirection);
+  // Filter out expired chemicals from the main inventory
+  const nonExpiredChemicals = chemicals.filter(chemical => {
+    const expirationDate = new Date(chemical.expiration_date);
+    const today = new Date();
+    return expirationDate >= today;
+  });
+
+  // Filter and sort non-expired chemicals
+  const filteredChemicals = filterChemicals(nonExpiredChemicals, searchTerm, filterClass, sortField, sortDirection);
   const sortedChemicals = sortItems(filteredChemicals, sortField, sortDirection);
 
-  // Handle search with autocomplete
+  // Handle search with autocomplete (only on non-expired chemicals)
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
     
     if (value.length > 2) {
-      const suggestions = chemicals.filter(chem => 
+      const suggestions = nonExpiredChemicals.filter(chem => 
         (chem.name || '').toLowerCase().includes(value.toLowerCase()) ||
         (chem.batch_number || '').toLowerCase().includes(value.toLowerCase())
       ).slice(0, 5);
@@ -53,16 +59,16 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
     setShowAutocomplete(false);
   };
 
-  // Handle export
+  // Handle export (only non-expired chemicals)
   const handleExport = () => {
-    exportToCSV(chemicals, 'chemicals_inventory');
+    exportToCSV(nonExpiredChemicals, 'active_chemicals_inventory');
     addAuditLog({
       type: 'chemical',
       action: 'export',
-      itemName: 'All Chemicals',
+      itemName: 'Active Chemicals',
       user: userRole,
       timestamp: new Date().toISOString(),
-      details: { count: chemicals.length }
+      details: { count: nonExpiredChemicals.length }
     });
   };
 
@@ -94,8 +100,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
   // Handle adding a new chemical
   const handleAddChemical = async (createdChemical) => {
     try {
-      updateChemicals([...chemicals, createdChemical]);
-
+      setChemicals([...chemicals, createdChemical]);
       addAuditLog({
         type: 'chemical',
         action: 'add',
@@ -117,7 +122,12 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
   return (
     <>
       <div className="list-header">
-        <h1 className="list-title">Chemicals</h1>
+        <div>
+          <h1 className="list-title">Chemical Inventory</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Total Number of Chemicals: {nonExpiredChemicals.length} 
+          </p>
+        </div>
         {isAdmin && (
           <button 
             onClick={() => setShowAddModal(true)}
@@ -154,7 +164,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
               <Search className="search-icon" />
               <input
                 type="text"
-                placeholder="Search chemicals..."
+                placeholder="Search active chemicals..."
                 className="search-input"
                 value={searchTerm}
                 onChange={handleSearchChange}
@@ -241,7 +251,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
                         const imgSrc = ghsSymbols[symbol];
                         if (!imgSrc) {
                           console.warn(`GHS symbol not found: ${symbol}`);
-                          return null; // or return a fallback
+                          return null;
                         }
                         
                         return (
@@ -261,7 +271,9 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="item-meta">EXP: {chemical.expiration_date}</p>
+                    <p className="item-meta">
+                      EXP: {chemical.expiration_date}
+                    </p>
                     <p className="item-meta">
                       Qty: {chemical.current_quantity}/{chemical.initial_quantity}
                     </p>
@@ -283,7 +295,9 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
           ))}
           
           {sortedChemicals.length === 0 && (
-            <p className="no-data">No chemicals found</p>
+            <p className="no-data">
+              {nonExpiredChemicals.length === 0 ? 'No active chemicals in inventory' : 'No chemicals match your search'}
+            </p>
           )}
         </div>
       </div>

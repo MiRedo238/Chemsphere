@@ -248,7 +248,7 @@ const DetailView = ({
           </button>
           <h1 className="detail-title">Chemical Details</h1>
           {isAdmin && (
-            <div className="ml-auto flex gap-2">
+            <div className="detail-actions">
               {editing ? (
                 <>
                   <button onClick={handleCancel} className="form-button bg-gray-500" disabled={loading}>

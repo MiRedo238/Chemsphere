@@ -65,18 +65,7 @@ const Dashboard = ({ userRole, refreshData }) => {
 
   return (
     <>
-      <ActionButtons 
-        onAddChemical={handleAddChemical}
-        onAddEquipment={handleAddEquipment}
-        chemicals={chemicals}
-        equipment={equipment}
-        updateChemicals={setChemicals}
-        updateEquipment={setEquipment}
-        addAuditLog={addAuditLog}
-        userRole={userRole}
-        refreshData={refreshData}
-      />
-
+      
       <div className="dashboard-grid">
         {/* Near Expiration Card */}
         <DashboardCard

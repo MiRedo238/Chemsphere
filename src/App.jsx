@@ -1,5 +1,5 @@
 // App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext  } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Plus, Menu, X } from 'lucide-react';
@@ -13,91 +13,8 @@ import LogChemicalUsage from './components/LogChemicalUsage';
 import AuditLogs from './components/AuditLogs';
 import ExpiredChemicals from './components/ExpiredChemicals';
 import './App.css';
-import { DatabaseProvider } from './contexts/DatabaseContext';
+import { DatabaseProvider, DatabaseContext } from './contexts/DatabaseContext';
 
-// Mock data - replace with Supabase queries
-const mockData = {
-  nearExpiration: [
-    { id: 1, name: 'Chemical 1', days: 5 },
-    { id: 2, name: 'Chemical 2', days: 20 },
-    { id: 3, name: 'Chemical 3', days: 45 },
-    { id: 4, name: 'Chemical 4', days: 30 },
-    { id: 5, name: 'Chemical 5', days: 15 },
-    { id: 6, name: 'Chemical 6', days: 25 },
-    { id: 7, name: 'Chemical 7', days: 10 },
-    { id: 8, name: 'Chemical 8', days: 35 }
-  ],
-  lowStock: [
-    { id: 1, name: 'Chemical 1', quantity: 3 },
-    { id: 2, name: 'Chemical 2', quantity: 4 },
-    { id: 3, name: 'Chemical 3', quantity: 10 },
-    { id: 4, name: 'Chemical 4', quantity: 2 },
-    { id: 5, name: 'Chemical 5', quantity: 5 },
-    { id: 6, name: 'Chemical 6', quantity: 8 },
-    { id: 7, name: 'Chemical 7', quantity: 1 },
-    { id: 8, name: 'Chemical 8', quantity: 6 }
-  ],
-  expired: [
-    { id: 1, name: 'Chemical 1', date: '9/5/25' },
-    { id: 2, name: 'Chemical 2', date: '9/5/25' },
-    { id: 3, name: 'Chemical 3', date: '7/07/25' },
-    { id: 4, name: 'Chemical 4', date: '8/15/25' },
-    { id: 5, name: 'Chemical 5', date: '6/20/25' },
-    { id: 6, name: 'Chemical 6', date: '7/30/25' },
-    { id: 7, name: 'Chemical 7', date: '8/10/25' }
-  ],
-  outOfStock: [
-    { id: 1, name: 'Chemical 1' },
-    { id: 2, name: 'Chemical 2' },
-    { id: 3, name: 'Chemical 3' },
-    { id: 4, name: 'Chemical 4' },
-    { id: 5, name: 'Chemical 5' },
-    { id: 6, name: 'Chemical 6' },
-    { id: 7, name: 'Chemical 7' },
-    { id: 8, name: 'Chemical 8' }
-  ]
-};
-
-// Mock chemicals and equipment data
-const mockChemicals = [
-  { 
-    id: 1, 
-    name: 'Sodium Hydroxide', 
-    batch_number: 'SH-2024-001', 
-    brand: 'LabChem',
-    volume: '500mL',
-    initial_quantity: 100,
-    current_quantity: 45,
-    expiration_date: '2025-12-31',
-    date_of_arrival: '2024-01-15',
-    safety_class: 'corrosive',
-    location: 'Lab A - Shelf 2',
-    ghs_symbols: ['corrosive', 'toxic'],
-    usage_log: [
-      { user_name: 'John Doe', location: 'Lab A', quantity: 5, date: '2024-01-20', opened: true },
-      { user_name: 'Jane Smith', location: 'Lab B', quantity: 10, date: '2024-02-15', opened: false }
-    ]
-  }
-];
-
-const mockEquipment = [
-  {
-    id: 1,
-    name: 'Microscope',
-    model: 'CX23',
-    serial_id: 'MIC-001',
-    status: 'Available',
-    location: 'Lab A',
-    purchase_date: '2023-05-10',
-    warranty_expiration: '2025-05-10',
-    equipment_condition: 'Good',
-    last_maintenance: '2024-01-15',
-    next_maintenance: '2024-07-15',
-    maintenance_log: [
-      { action: 'Routine Maintenance', user_name: 'Tech Team', date: '2024-01-15', notes: 'Cleaned and calibrated' }
-    ]
-  }
-];
 
 // Main Dashboard Component (Protected)
 function DashboardContent() {
@@ -105,9 +22,17 @@ function DashboardContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedItem, setSelectedItem] = useState(null);
-  const [chemicals, setChemicals] = useState(mockChemicals);
-  const [equipment, setEquipment] = useState(mockEquipment);
-  const { user, loading, userRole } = useAuth(); // Get real user role from AuthContext
+  const { user, loading, userRole } = useAuth();
+
+  // Use DatabaseContext for real data
+  const { 
+    chemicals, 
+    equipment, 
+    setChemicals, 
+    setEquipment, 
+    fetchChemicals,
+    fetchEquipment
+  } = useContext(DatabaseContext);
 
   // Sync activeSection with currentView
   useEffect(() => {
@@ -127,6 +52,12 @@ function DashboardContent() {
       setCurrentView(sectionToViewMap[activeSection]);
     }
   }, [activeSection]);
+
+   useEffect(() => {
+    if (fetchChemicals) fetchChemicals();
+    if (fetchEquipment) fetchEquipment();
+  }, [fetchChemicals, fetchEquipment]);
+
 
   const updateChemicals = (updatedChemicals) => {
     setChemicals(updatedChemicals);
@@ -168,70 +99,10 @@ function DashboardContent() {
     switch (currentView) {
       case 'dashboard':
         return (
-          <div className="dashboard-grid">
-            {/* Near Expiration Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2>Near Expiration</h2>
-                <span className="badge">20</span>
-              </div>
-              <ul className="card-list">
-                {mockData.nearExpiration.map((item) => (
-                  <li key={item.id}>
-                    <span>{item.name}</span>
-                    <span className="days">{item.days} days</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Low Stock Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2>Low stock</h2>
-                <span className="badge">30</span>
-              </div>
-              <ul className="card-list">
-                {mockData.lowStock.map((item) => (
-                  <li key={item.id}>
-                    <span>{item.name}</span>
-                    <span className="quantity">{item.quantity} left</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Expired Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2>Expired</h2>
-                <span className="badge badge-warning">5</span>
-              </div>
-              <ul className="card-list">
-                {mockData.expired.map((item) => (
-                  <li key={item.id}>
-                    <span>{item.name}</span>
-                    <span className="date">{item.date}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Out of Stock Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2>Out of stock</h2>
-                <span className="badge badge-danger">10</span>
-              </div>
-              <ul className="card-list">
-                {mockData.outOfStock.map((item) => (
-                  <li key={item.id}>
-                    <span>{item.name}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          <Dashboard 
+            userRole={userRole}
+            refreshData={refreshData}
+          />
         );
 
       case 'chemicals':
@@ -333,6 +204,8 @@ function DashboardContent() {
         setSidebarOpen={setSidebarOpen}
         activeSection={activeSection}
         setActiveSection={setActiveSection}
+        user={user} 
+        userRole={userRole} 
       />
 
       {/* Main Content */}
@@ -342,7 +215,7 @@ function DashboardContent() {
             <>
               <button className="add-btn" onClick={() => handleSetCurrentView('log-usage')}>
                 <Plus size={20} />
-                Log chemical usage
+                Log Chemical Usage
               </button>
             </>
           )}

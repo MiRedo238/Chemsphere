@@ -720,56 +720,83 @@ body {
   cursor: not-allowed;
 }
 
-/* Log Styles */
-.log-container {
-  max-height: 400px;
-  overflow-y: auto;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+/* Login Section Styles */
+.login-section {
+  margin-bottom: 24px;
 }
 
-.log-item {
-  padding: 15px;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background 0.2s;
+.login-section-header {
+  margin-bottom: 16px;
 }
 
-.log-item:hover {
-  background: #f9f9f9;
-}
-
-.log-item:last-child {
-  border-bottom: none;
-}
-
-.log-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+.login-section-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
   margin-bottom: 8px;
 }
 
-.log-user {
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 2px;
-}
-
-.log-location,
-.log-date,
-.log-quantity {
-  font-size: 12px;
+/* Login Divider */
+.login-divider {
+  display: flex;
+  align-items: center;
+  margin: 24px 0;
   color: #666;
 }
 
-.log-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  background: #e3f2fd;
-  color: #1976d2;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+.login-divider span {
+  padding: 0 16px;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Adjust spacing for the simultaneous layout */
+.credentials-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 0;
+}
+
+.google-login-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #333;
+  margin-bottom: 0;
+}
+
+.google-login-button:hover {
+  border-color: #c0c0c0;
+  background: #f8f9fa;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .login-section {
+    margin-bottom: 20px;
+  }
+  
+  .login-divider {
+    margin: 20px 0;
+  }
 }
 
 /* Usage Form Styles */

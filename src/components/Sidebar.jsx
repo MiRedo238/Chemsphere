@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { 
-  Beaker, 
-  Package, 
+  FlaskConical, 
+  TestTube2, 
   Wrench, 
   FileText, 
   ClipboardList, 
@@ -9,23 +10,77 @@ import {
   LayoutDashboard,
   ChevronDown,
   ChevronRight,
-  X
+  X,
+  LogOut,
+  AlertTriangle
 } from 'lucide-react';
 
-const Sidebar = ({ sidebarOpen, setSidebarOpen, activeSection, setActiveSection }) => {
+const Sidebar = ({ 
+  sidebarOpen, 
+  setSidebarOpen, 
+  activeSection, 
+  setActiveSection, 
+  user, 
+  userRole 
+}) => {
+  const { logout } = useAuth();
   const [chemicalsExpanded, setChemicalsExpanded] = useState(false);
-  const [username, setUsername] = useState('User name');
+
+  // Capitalize the role
+  const getCapitalizedRole = () => {
+    if (!userRole) return 'User';
+    return userRole.charAt(0).toUpperCase() + userRole.slice(1).toLowerCase();
+  };
+
+  // Get display name from Supabase Auth user_metadata
+  const getDisplayName = () => {
+    const capitalizedRole = getCapitalizedRole();
+    
+    if (user) {
+      // Try to get name from user_metadata (Supabase Auth)
+      const userName = user.user_metadata?.name || 
+                      user.user_metadata?.full_name || 
+                      user.user_metadata?.username;
+      
+      if (userName) {
+        return `${capitalizedRole} ${userName}`;
+      }
+      
+      // Fallback: use email username with nice formatting
+      if (user.email) {
+        const emailUsername = user.email.split('@')[0];
+        const formattedUsername = emailUsername
+          .split(/[._]/) // Split by dots or underscores
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .join(' ');
+        
+        return `${capitalizedRole} ${formattedUsername}`;
+      }
+    }
+    
+    return capitalizedRole;
+  };
+
+  // Logout function
+   const handleLogout = async () => {
+    try {
+      await logout();
+      setSidebarOpen(false);
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  };
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', key: 'dashboard' },
     { 
-      icon: Beaker, 
+      icon: FlaskConical, 
       label: 'Chemicals', 
       key: 'chemicals',
       hasSubmenu: true,
       submenu: [
-        { label: 'Stock', key: 'stock' },
-        { label: 'Expired', key: 'expired' }
+        { icon: TestTube2, label: 'Inventory', key: 'stock' },
+        { icon: AlertTriangle, label: 'Expired', key: 'expired' }
       ]
     },
     { icon: Wrench, label: 'Equipment', key: 'equipment' },
@@ -53,7 +108,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, activeSection, setActiveSection 
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <h1>Chemsphere</h1>
-          <p>Logged in as: {username}</p>
+          <p>{getDisplayName()}</p>
         </div>
 
         <nav className="sidebar-nav">
@@ -80,7 +135,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, activeSection, setActiveSection 
                       className={`submenu-item ${activeSection === subItem.key ? 'active' : ''}`}
                       onClick={() => handleSubmenuClick(subItem.key)}
                     >
-                      <Package size={16} />
+                      <subItem.icon size={16} />
                       <span>{subItem.label}</span>
                     </button>
                   ))}
@@ -88,6 +143,17 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, activeSection, setActiveSection 
               )}
             </div>
           ))}
+          
+          {/* Logout Button - Added at the bottom */}
+          <div className="mt-auto pt-4 border-t border-gray-700">
+            <button
+              className="nav-item text-red-400 hover:bg-red-900 hover:bg-opacity-20"
+              onClick={handleLogout}
+            >
+              <LogOut size={20} />
+              <span>Log Out</span>
+            </button>
+          </div>
         </nav>
       </aside>
 

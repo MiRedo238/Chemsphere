@@ -1,9 +1,10 @@
 // src/components/DetailView.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { ChevronLeft, Edit, Trash2, User, MapPin, Clock, Microscope } from 'lucide-react';
 import { safetyColors, statusColors, ghsSymbols } from '../utils/data';
 import { formatDate, normalizeGhsSymbols } from '../utils/helpers';
 import { updateChemical, deleteChemical, updateEquipment, deleteEquipment } from '../services/api';
+import { DatabaseContext } from '../contexts/DatabaseContext';
 
 const DetailView = ({ 
   selectedItem, 
@@ -13,13 +14,13 @@ const DetailView = ({
   equipment, 
   updateChemicals, 
   updateEquipment,
-  addAuditLog,
   refreshData
 }) => {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { user, addAuditLog } = useContext(DatabaseContext);
   
   const isAdmin = userRole === 'admin';
 
@@ -166,9 +167,9 @@ const DetailView = ({
         addAuditLog({
           type: 'chemical',
           action: 'delete',
-          itemName: selectedItem.name,
-          user: userRole,
-          timestamp: new Date().toISOString(),
+          item_name: selectedItem.name,
+          user_role: userRole,         
+          user_name: user?.name || user?.username || 'System', 
           details: { batchNumber: selectedItem.batch_number }
         });
       } else {
@@ -177,9 +178,9 @@ const DetailView = ({
         addAuditLog({
           type: 'equipment',
           action: 'delete',
-          itemName: selectedItem.name,
-          user: userRole,
-          timestamp: new Date().toISOString(),
+          item_name: selectedItem.name,
+          user_role: userRole,         
+          user_name: user?.name || user?.username || 'System', 
           details: { serialId: selectedItem.serial_id }
         });
       }
@@ -405,7 +406,7 @@ const DetailView = ({
                       className="form-select"
                       disabled={loading}
                     >
-                      <option value="safe">Safe</option>
+                      <option value="moderate-hazard">Moderate Hazard</option>
                       <option value="toxic">Toxic</option>
                       <option value="corrosive">Corrosive</option>
                       <option value="reactive">Reactive</option>

@@ -58,6 +58,19 @@ function DashboardContent() {
     if (fetchEquipment) fetchEquipment();
   }, [fetchChemicals, fetchEquipment]);
 
+  const [previousView, setPreviousView] = useState('chemicals'); 
+  // When navigating to detail view
+  const handleViewDetail = (item, fromSection) => {
+    setPreviousView(fromSection); // Store which section we came from
+    setSelectedItem(item);
+    setCurrentView('detail');
+  };
+
+  // When navigating back
+  const handleBack = () => {
+    setCurrentView(previousView);
+    setSelectedItem(null);
+  };
 
   const updateChemicals = (updatedChemicals) => {
     setChemicals(updatedChemicals);
@@ -78,6 +91,7 @@ function DashboardContent() {
   };
 
   const handleSetCurrentView = (view) => {
+    setPreviousView(currentView); // Store current view as previous before changing
     setCurrentView(view);
     // Update active section based on view
     const viewToSectionMap = {
@@ -93,6 +107,15 @@ function DashboardContent() {
     if (viewToSectionMap[view]) {
       setActiveSection(viewToSectionMap[view]);
     }
+  };
+
+  // Update when setting selected item to track where we're coming from
+  const handleSetSelectedItem = (item, fromView = null) => {
+    if (fromView) {
+      setPreviousView(fromView); // Store the specific view we're coming from
+    }
+    setSelectedItem(item);
+    handleSetCurrentView('detail');
   };
 
   const renderContent = () => {
@@ -167,7 +190,12 @@ function DashboardContent() {
 
       case 'expired-chemicals':
         return (
-          <ExpiredChemicals />
+          <ExpiredChemicals 
+          setSelectedItem={setSelectedItem}
+          setCurrentView={setCurrentView}
+          userRole={userRole}
+          refreshData={refreshData}
+        />
         );
 
       case 'users':

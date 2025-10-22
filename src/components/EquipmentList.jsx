@@ -1,6 +1,6 @@
 // src/components/EquipmentList.jsx
 import React, { useState, useContext } from 'react';
-import { Search, Plus, Eye, Download, Upload } from 'lucide-react';
+import { Search, Plus, Download, Upload, ArrowUp, ArrowDown } from 'lucide-react';
 import { statusColors } from '../utils/data';
 import { filterEquipment, sortItems, exportToCSV, getEquipmentSortOptions } from '../utils/helpers';
 import AddEquipment from './AddEquipment';
@@ -77,7 +77,7 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
       const importedData = await importEquipment(file);
       
       // Update local state
-      updateEquipment([...equipment, ...importedData]);
+      setEquipment([...equipment, ...importedData]);
       
       addAuditLog({
         type: 'equipment',
@@ -101,7 +101,7 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
 
   // Handle adding new equipment
   const handleAddEquipment = (newEquipment) => {
-    updateEquipment([...equipment, newEquipment]);
+    setEquipment([...equipment, newEquipment]);
     addAuditLog({
       type: 'equipment',
       action: 'add',
@@ -111,6 +111,14 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
       details: { serialId: newEquipment.serial_id }
     });
     setShowAddModal(false);
+  };
+
+  // Handle card click
+  const handleCardClick = (eq) => {
+    if (!loading) {
+      setSelectedItem({...eq, type: 'equipment'});
+      setCurrentView('detail');
+    }
   };
 
   return (
@@ -153,7 +161,8 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
       </Modal>
 
       <div className="list-container">
-        <div className="search-filter">
+        {/* Search Bar - Full Width */}
+        <div className="search-row">
           <div className="autocomplete-container">
             <div className="search-container">
               <Search className="search-icon" />
@@ -182,7 +191,10 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
               </div>
             )}
           </div>
-          
+        </div>
+
+        {/* Filter and Sort Row */}
+        <div className="filter-sort-row">
           <select 
             className="filter-select"
             value={statusFilter}
@@ -209,16 +221,27 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
           </select>
           
           <button 
-            className="filter-select"
+            className="sort-direction-button"
             onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
             disabled={loading}
           >
-            {sortDirection === 'asc' ? '↑' : '↓'}
+            {sortDirection === 'asc' ? (
+              <>
+                <ArrowUp className="sort-arrow" />
+                Ascending
+              </>
+            ) : (
+              <>
+                <ArrowDown className="sort-arrow" />
+                Descending
+              </>
+            )}
           </button>
           
-          <div className="import-export">
+          <div className="import-export-buttons">
             <label htmlFor="import-equipment" className={`import-button ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <Upload className="import-export-icon" />
+              <span>Import</span>
               <input
                 id="import-equipment"
                 type="file"
@@ -234,36 +257,27 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
               disabled={loading}
             >
               <Download className="import-export-icon" />
+              <span>Export</span>
             </button>
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="equipment-list">
           {sortedEquipment.map(eq => (
-            <div key={eq.id} className="list-item">
-              <div className="item-details">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="item-name">{eq.name}</h3>
-                    <p className="item-meta">{eq.serial_id} • {eq.model}</p>
-                  </div>
-                  <div className="item-status">
-                    <span className={`status-badge ${statusColors[eq.status]}`}>
-                      {eq.status}
-                    </span>
-                  </div>
-                </div>
+            <div 
+              key={eq.id} 
+              className="equipment-card"
+              onClick={() => handleCardClick(eq)}
+            >
+              <div className="equipment-info">
+                <h3 className="equipment-name">{eq.name}</h3>
+                <p className="equipment-meta">{eq.model} • {eq.serial_id}</p>
               </div>
-              <button 
-                onClick={() => {
-                  setSelectedItem({...eq, type: 'equipment'});
-                  setCurrentView('detail');
-                }}
-                className="view-button"
-                disabled={loading}
-              >
-                <Eye className="view-icon" />
-              </button>
+              <div className="equipment-status">
+                <span className={`status-badge ${statusColors[eq.status]}`}>
+                  {eq.status}
+                </span>
+              </div>
             </div>
           ))}
           

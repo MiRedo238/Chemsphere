@@ -226,7 +226,6 @@ const LogChemicalUsage = ({
     <div>
       <div className="detail-header">
         <h1 className="detail-title">
-          <FlaskConical className="inline mr-2" />
           Log Chemical Usage
         </h1>
       </div>

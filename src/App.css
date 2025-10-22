@@ -532,9 +532,6 @@ body {
   text-transform: uppercase;
 }
 
-.status-badge.Available { background: #e8f5e8; color: #2e7d32; }
-.status-badge.Broken { background: #ffebee; color: #c62828; }
-.status-badge.under-maintenance { background: #fff3e0; color: #ef6c00; }
 
 .view-button {
   display: flex;
@@ -1394,4 +1391,452 @@ body {
 .app-loading p {
   font-size: 18px;
   font-weight: 500;
+}
+
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Equipment List Specific Styles - Add these to your App.css */
+
+/* Search Row - Full Width */
+.search-row {
+  margin-bottom: 15px;
+}
+
+.search-row .autocomplete-container {
+  width: 100%;
+  min-width: auto;
+}
+
+/* Filter and Sort Row */
+.filter-sort-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-sort-row .filter-select {
+  flex: 0 0 auto;
+  min-width: 150px;
+}
+
+/* Sort Direction Button */
+.sort-direction-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.sort-direction-button:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+.sort-direction-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sort-arrow {
+  width: 18px;
+  height: 18px;
+  color: #1e88e5;
+}
+
+/* Import Export Buttons Group */
+.import-export-buttons {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.import-button,
+.export-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.import-button:hover:not(.opacity-50),
+.export-button:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+.import-export-icon {
+  width: 18px;
+  height: 18px;
+  color: #666;
+}
+
+/* Equipment List Cards */
+.equipment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.equipment-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.equipment-card:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  background: #f8f9fa;
+}
+
+.equipment-card:active {
+  transform: translateY(0);
+}
+
+.equipment-info {
+  flex: 1;
+}
+
+.equipment-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.equipment-meta {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.equipment-status {
+  display: flex;
+  align-items: center;
+}
+
+/* Status Badge Styles */
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* Equipment Status Colors */
+.status-badge.status-available { 
+  background: #d4edda; 
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-badge.status-broken { 
+  background: #f8d7da; 
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.status-badge.status-maintenance { 
+  background: #fff3cd; 
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+/* Responsive Design for Equipment List */
+@media (max-width: 768px) {
+  .filter-sort-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-sort-row .filter-select {
+    width: 100%;
+  }
+  
+  .sort-direction-button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .import-export-buttons {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .import-button,
+  .export-button {
+    flex: 1;
+  }
+  
+  .equipment-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .equipment-status {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .equipment-card {
+    padding: 12px 16px;
+  }
+  
+  .equipment-name {
+    font-size: 16px;
+  }
+  
+  .equipment-meta {
+    font-size: 13px;
+  }
+}
+
+
+/* Chemicals List Container */
+.chemicals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Chemical Card */
+.chemical-card {
+  display: flex;
+  align-items: center;
+  background: white;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  cursor: pointer;
+  gap: 15px;
+}
+
+.chemical-card:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  background: #f8f9fa;
+}
+
+.chemical-card:active {
+  transform: translateY(0);
+}
+
+/* Out of Stock Card - Red Background */
+.chemical-card.out-of-stock {
+  background: #ffebee;
+  border: 2px solid #ef5350;
+}
+
+.chemical-card.out-of-stock:hover {
+  background: #ffcdd2;
+}
+
+/* Safety Color Indicator on the Left */
+.chemical-safety-indicator {
+  width: 8px;
+  height: 60px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Safety Colors - Updated with new color scheme */
+.chemical-safety-indicator.safety-moderate-hazard { 
+  background: #9e9e9e; /* Gray */
+}
+
+.chemical-safety-indicator.safety-toxic { 
+  background: #2196f3; /* Blue - Health Hazard */
+}
+
+.chemical-safety-indicator.safety-corrosive { 
+  background: white;
+  border: 2px solid #757575; /* White with border for visibility */
+}
+
+.chemical-safety-indicator.safety-reactive { 
+  background: #ffd54f; /* Yellow */
+}
+
+.chemical-safety-indicator.safety-flammable { 
+  background: #f44336; /* Red */
+}
+
+/* Chemical Main Info - Left Side */
+.chemical-main-info {
+  flex: 1;
+  min-width: 0; /* Allows text truncation */
+}
+
+.chemical-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.chemical-meta {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 8px 0;
+}
+
+.ghs-symbols {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.ghs-symbol-image {
+  width: 28px;
+  height: 28px;
+  border-radius: 2px;
+}
+
+/* Chemical Details - Right Side */
+.chemical-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+  text-align: right;
+}
+
+.chemical-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  font-size: 14px;
+  gap: 8px;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #666;
+  min-width: 35px;
+}
+
+.detail-value {
+  color: #333;
+  font-weight: 500;
+}
+
+/* Text color utilities */
+.text-red-600 {
+  color: #dc2626 !important;
+}
+
+.text-gray-600 {
+  color: #666 !important;
+}
+
+.font-bold {
+  font-weight: 700 !important;
+}
+
+.font-semibold {
+  font-weight: 600 !important;
+}
+
+/* Update existing safety-indicator styles for backward compatibility */
+.safety-indicator.safety-moderate-hazard { 
+  background: #9e9e9e;
+}
+
+.safety-indicator.safety-toxic { 
+  background: #2196f3;
+}
+
+.safety-indicator.safety-corrosive { 
+  background: white;
+  border: 2px solid #757575;
+}
+
+.safety-indicator.safety-reactive { 
+  background: #ffd54f;
+}
+
+.safety-indicator.safety-flammable { 
+  background: #f44336;
+}
+
+/* Responsive Design for Chemical Cards */
+@media (max-width: 768px) {
+  .chemical-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .chemical-safety-indicator {
+    width: 100%;
+    height: 6px;
+  }
+  
+  .chemical-details {
+    width: 100%;
+    text-align: left;
+  }
+  
+  .chemical-detail-item {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .chemical-card {
+    padding: 12px 16px;
+  }
+  
+  .chemical-name {
+    font-size: 16px;
+  }
+  
+  .chemical-meta {
+    font-size: 13px;
+  }
+  
+  .ghs-symbol-image {
+    width: 24px;
+    height: 24px;
+  }
 }

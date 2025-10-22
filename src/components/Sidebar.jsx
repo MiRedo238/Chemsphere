@@ -84,7 +84,7 @@ const Sidebar = ({
       ]
     },
     { icon: Wrench, label: 'Equipment', key: 'equipment' },
-    { icon: FileText, label: 'Chemical Usage', key: 'usage' },
+    { icon: FileText, label: 'Log Chemical Usage', key: 'usage' },
     { icon: ClipboardList, label: 'Audit Logs', key: 'audit' },
     { icon: User, label: 'Manage Users', key: 'users' }
   ];

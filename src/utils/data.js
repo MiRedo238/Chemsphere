@@ -93,13 +93,13 @@ export const users = [
   { id: 3, username: 'user2', password: 'user123', role: 'user', name: 'Dr. Johnson' }
 ];
 
-// Safety class color mapping
+// Safety class color mapping - UPDATED: 'safe' changed to 'moderate-hazard'
 export const safetyColors = {
-  safe: 'safety-safe',
-  toxic: 'safety-toxic',
-  corrosive: 'safety-corrosive',
-  reactive: 'safety-reactive',
-  flammable: 'safety-flammable'
+  'moderate-hazard': 'safety-moderate-hazard',  // Gray - Changed from 'safe'
+  'toxic': 'safety-toxic',                      // Blue - Health Hazard
+  'corrosive': 'safety-corrosive',              // White with border
+  'reactive': 'safety-reactive',                // Yellow
+  'flammable': 'safety-flammable'               // Red
 };
 
 // Status color mapping for equipment

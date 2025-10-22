@@ -61,7 +61,12 @@ const AddEquipment = ({
                 item_name: newEquipment.name,
                 user_role: userRole,
                 user_name: user?.name || user?.username || 'System',
-                details: { serial_id: newEquipment.serial_id }
+                details: { 
+                  model: newEquipment.model,
+                  serial_id: newEquipment.serial_id,
+                  status: newEquipment.status,
+                  condition: newEquipment.equipment_condition
+                 }
             });
             }
         

@@ -1,10 +1,9 @@
 // src/components/ChemicalsList.jsx
 import React, { useState, useContext } from 'react';
-import { Search, Plus, Eye, Download, Upload } from 'lucide-react';
+import { Search, Plus, Download, Upload, ArrowUp, ArrowDown } from 'lucide-react';
 import { safetyColors, ghsSymbols } from '../utils/data';
-import { filterChemicals, sortItems, exportToCSV, importFromCSV, normalizeGhsSymbols, getChemicalSortOptions } from '../utils/helpers';
-import { createChemical, importChemicals } from '../services/api';
-
+import { filterChemicals, sortItems, exportToCSV, normalizeGhsSymbols, getChemicalSortOptions } from '../utils/helpers';
+import { importChemicals } from '../services/api';
 import AddChemical from './AddChemical';
 import Modal from './Modal';
 import { DatabaseContext } from '../contexts/DatabaseContext';
@@ -33,6 +32,16 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
   // Filter and sort non-expired chemicals
   const filteredChemicals = filterChemicals(nonExpiredChemicals, searchTerm, filterClass, sortField, sortDirection);
   const sortedChemicals = sortItems(filteredChemicals, sortField, sortDirection);
+
+  // Separate out-of-stock chemicals and sort them separately
+  const outOfStockChemicals = sortedChemicals.filter(chem => chem.current_quantity === 0);
+  const inStockChemicals = sortedChemicals.filter(chem => chem.current_quantity > 0);
+  
+  // Sort out-of-stock chemicals by the same criteria
+  const sortedOutOfStock = sortItems(outOfStockChemicals, sortField, sortDirection);
+  
+  // Combine: out-of-stock first, then in-stock
+  const finalSortedChemicals = [...sortedOutOfStock, ...inStockChemicals];
 
   // Handle search with autocomplete (only on non-expired chemicals)
   const handleSearchChange = (e) => {
@@ -119,6 +128,14 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
     }
   };
 
+  // Handle card click
+  const handleCardClick = (chemical) => {
+    if (!loading) {
+      setSelectedItem({...chemical, type: 'chemical'});
+      setCurrentView('detail');
+    }
+  };
+
   return (
     <>
       <div className="list-header">
@@ -126,6 +143,11 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
           <h1 className="list-title">Chemical Inventory</h1>
           <p className="text-sm text-gray-600 mt-1">
             Total Number of Chemicals: {nonExpiredChemicals.length} 
+            {outOfStockChemicals.length > 0 && (
+              <span className="text-red-600 font-semibold ml-2">
+                • Out of Stock: {outOfStockChemicals.length}
+              </span>
+            )}
           </p>
         </div>
         {isAdmin && (
@@ -158,7 +180,8 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
       </Modal>
 
       <div className="list-container">
-        <div className="search-filter">
+        {/* Search Bar - Full Width */}
+        <div className="search-row">
           <div className="autocomplete-container">
             <div className="search-container">
               <Search className="search-icon" />
@@ -170,6 +193,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
                 onChange={handleSearchChange}
                 onFocus={() => searchTerm.length > 2 && setShowAutocomplete(true)}
                 onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
+                disabled={loading}
               />
             </div>
             {showAutocomplete && autocompleteSuggestions.length > 0 && (
@@ -186,14 +210,18 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
               </div>
             )}
           </div>
-          
+        </div>
+
+        {/* Filter and Sort Row */}
+        <div className="filter-sort-row">
           <select 
             className="filter-select"
             value={filterClass}
             onChange={(e) => setFilterClass(e.target.value)}
+            disabled={loading}
           >
             <option value="all">All Classes</option>
-            <option value="safe">Safe</option>
+            <option value="moderate-hazard">Moderate Hazard</option>
             <option value="toxic">Toxic</option>
             <option value="corrosive">Corrosive</option>
             <option value="reactive">Reactive</option>
@@ -204,6 +232,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
             className="filter-select"
             value={sortField}
             onChange={(e) => setSortField(e.target.value)}
+            disabled={loading}
           >
             {getChemicalSortOptions().map(option => (
               <option key={option.value} value={option.value}>
@@ -213,15 +242,27 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
           </select>
           
           <button 
-            className="filter-select"
+            className="sort-direction-button"
             onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+            disabled={loading}
           >
-            {sortDirection === 'asc' ? '↑' : '↓'}
+            {sortDirection === 'asc' ? (
+              <>
+                <ArrowUp className="sort-arrow" />
+                Ascending
+              </>
+            ) : (
+              <>
+                <ArrowDown className="sort-arrow" />
+                Descending
+              </>
+            )}
           </button>
           
-          <div className="import-export">
-            <label htmlFor="import-chemicals" className="import-button">
+          <div className="import-export-buttons">
+            <label htmlFor="import-chemicals" className={`import-button ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <Upload className="import-export-icon" />
+              <span>Import</span>
               <input
                 id="import-chemicals"
                 type="file"
@@ -231,70 +272,75 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
                 disabled={loading}
               />
             </label>
-            <button className="export-button" onClick={handleExport} disabled={loading}>
+            <button 
+              className="export-button" 
+              onClick={handleExport} 
+              disabled={loading}
+            >
               <Download className="import-export-icon" />
+              <span>Export</span>
             </button>
           </div>
         </div>
 
-        <div className="space-y-2">
-          {sortedChemicals.map(chemical => (
-            <div key={chemical.id} className="list-item">
-              <div className={`safety-indicator ${safetyColors[chemical.safety_class]}`}></div>
-              <div className="item-details">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="item-name">{chemical.name}</h3>
-                    <p className="item-meta">{chemical.batch_number} • {chemical.brand}</p>
-                    <div className="ghs-symbols">
-                      {normalizeGhsSymbols(chemical.ghs_symbols).map(symbol => {
-                        const imgSrc = ghsSymbols[symbol];
-                        if (!imgSrc) {
-                          console.warn(`GHS symbol not found: ${symbol}`);
-                          return null;
-                        }
-                        
-                        return (
-                          <img 
-                            key={symbol} 
-                            src={imgSrc} 
-                            alt={symbol}
-                            title={symbol}
-                            className="ghs-symbol-image"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              console.error(`Failed to load GHS symbol: ${symbol}`);
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="item-meta">
-                      EXP: {chemical.expiration_date}
-                    </p>
-                    <p className="item-meta">
-                      Qty: {chemical.current_quantity}/{chemical.initial_quantity}
-                    </p>
-                    <p className="item-meta">{chemical.location}</p>
+        {/* Chemicals List */}
+        <div className="chemicals-list">
+          {finalSortedChemicals.map(chemical => {
+            const isOutOfStock = chemical.current_quantity === 0;
+            
+            return (
+              <div 
+                key={chemical.id} 
+                className={`chemical-card ${isOutOfStock ? 'out-of-stock' : ''}`}
+                onClick={() => handleCardClick(chemical)}
+              >
+                <div className={`chemical-safety-indicator ${safetyColors[chemical.safety_class]}`}></div>
+                
+                <div className="chemical-main-info">
+                  <h3 className="chemical-name">{chemical.name}</h3>
+                  <p className="chemical-meta">{chemical.batch_number} • {chemical.brand}</p>
+                  <div className="ghs-symbols">
+                    {normalizeGhsSymbols(chemical.ghs_symbols).map(symbol => {
+                      const imgSrc = ghsSymbols[symbol];
+                      if (!imgSrc) return null;
+                      
+                      return (
+                        <img 
+                          key={symbol} 
+                          src={imgSrc} 
+                          alt={symbol}
+                          title={symbol}
+                          className="ghs-symbol-image"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
+                
+                <div className="chemical-details">
+                  <p className="chemical-detail-item">
+                    <span className="detail-label">Qty:</span>
+                    <span className={`detail-value ${isOutOfStock ? 'text-red-600 font-bold' : ''}`}>
+                      {chemical.current_quantity}/{chemical.initial_quantity}
+                    </span>
+                  </p>
+                  <p className="chemical-detail-item">
+                    <span className="detail-label">Exp:</span>
+                    <span className="detail-value">{chemical.expiration_date}</span>
+                  </p>
+                  <p className="chemical-detail-item">
+                    <span className="detail-label">Loc:</span>
+                    <span className="detail-value">{chemical.location}</span>
+                  </p>
+                </div>
               </div>
-              <button 
-                onClick={() => {
-                  setSelectedItem({...chemical, type: 'chemical'});
-                  setCurrentView('detail');
-                }}
-                className="view-button"
-                disabled={loading}
-              >
-                <Eye className="view-icon" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
           
-          {sortedChemicals.length === 0 && (
+          {finalSortedChemicals.length === 0 && (
             <p className="no-data">
               {nonExpiredChemicals.length === 0 ? 'No active chemicals in inventory' : 'No chemicals match your search'}
             </p>

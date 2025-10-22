@@ -112,20 +112,22 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
                   {log.user_name || log.user || log.userName}
                   {log.details && (
                     <>
+                      {log.details.model && ` • Model: ${log.details.model}`}
                       {log.details.serial_id && ` • Serial: ${log.details.serial_id}`}
                       {log.details.serialId && ` • Serial: ${log.details.serialId}`}
+                      {log.details.batchNumber && ` • Serial: ${log.details.batchNumber}`}
                       {log.details.location && ` • Location: ${log.details.location}`}
                       {log.details.quantity && ` • Quantity: ${log.details.quantity}`}
-                      {log.details.model && ` • Model: ${log.details.model}`}
                       {log.details.status && ` • Status: ${log.details.status}`}
                       {log.details.condition && ` • Condition: ${log.details.condition}`}
                       {/* Add fallback for any other details */}
                       {Object.keys(log.details).length > 0 && 
+                      !log.details.model && 
                       !log.details.serial_id && 
                       !log.details.serialId && 
+                      !log.details.batchNumber && 
                       !log.details.location && 
                       !log.details.quantity && 
-                      !log.details.model && 
                       !log.details.status && 
                       !log.details.condition && 
                       ` • Details: ${JSON.stringify(log.details)}`}

@@ -2,12 +2,10 @@ import React, { useState, useContext } from 'react';
 import { ChevronLeft, FlaskConical } from 'lucide-react';
 import Autocomplete from './Autocomplete';
 import { createChemical } from '../services/api';
-
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
 const AddChemical = ({ 
   setCurrentView, 
-  addAuditLog, 
   userRole, 
   isModal, 
   onClose, 
@@ -18,12 +16,13 @@ const AddChemical = ({
     name: '',
     batch_number: '',
     brand: '',
-    volume: '',
+    physical_state: 'liquid', // Default to liquid
+    unit: '',
     initial_quantity: '',
     current_quantity: '',
     expiration_date: '',
     date_of_arrival: '',
-    safety_class: 'safe',
+    safety_class: 'moderate-hazard',
     location: '',
     ghs_symbols: []
   });
@@ -46,6 +45,8 @@ const AddChemical = ({
   const chemicalBrands = [...new Set(chemicals.map(c => c.brand))].map(brand => ({ brand }));
   const chemicalLocations = [...new Set(chemicals.map(c => c.location))].map(location => ({ location }));
 
+  const { user, addAuditLog } = useContext(DatabaseContext);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -56,7 +57,8 @@ const AddChemical = ({
         name: formData.name,
         batch_number: formData.batch_number,
         brand: formData.brand || null,
-        volume: formData.volume || null,
+        physical_state: formData.physical_state,
+        unit: formData.unit || null,
         initial_quantity: parseInt(formData.initial_quantity) || 0,
         current_quantity: parseInt(formData.current_quantity) || parseInt(formData.initial_quantity) || 0,
         expiration_date: formData.expiration_date || null,
@@ -66,20 +68,23 @@ const AddChemical = ({
         ghs_symbols: formData.ghs_symbols
       });
 
-      if (updateChemicals) {
-        updateChemicals(newChemical);
+      // Fixed: Use setChemicals instead of undefined updateChemicals
+      if (setChemicals) {
+        setChemicals(prev => [...prev, newChemical]);
       }
 
       if (addAuditLog) {
         addAuditLog({
           type: 'chemical',
           action: 'add',
-          itemName: newChemical.name,
-          user: userRole,
-          timestamp: new Date().toISOString(),
+          item_name: newChemical.name, 
+          user_role: userRole,         
+          user_name: user?.name || user?.username || 'System',            
           details: {
             batchNumber: newChemical.batch_number,
-            quantity: newChemical.initial_quantity
+            quantity: newChemical.initial_quantity,
+            location: newChemical.location,
+            physicalState: newChemical.physical_state
           }
         });
       }
@@ -89,12 +94,13 @@ const AddChemical = ({
         name: '',
         batch_number: '',
         brand: '',
-        volume: '',
+        physical_state: 'liquid',
+        unit: '',
         initial_quantity: '',
         current_quantity: '',
         expiration_date: '',
         date_of_arrival: '',
-        safety_class: 'safe',
+        safety_class: 'moderate-hazard',
         location: '',
         ghs_symbols: []
       });
@@ -123,6 +129,14 @@ const AddChemical = ({
 
   const handleAutocompleteSelect = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePhysicalStateChange = (state) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      physical_state: state,
+      unit: '' // Clear unit when state changes
+    }));
   };
 
   return (
@@ -185,7 +199,49 @@ const AddChemical = ({
             />
           </div>
 
+          {/* Physical State Radio Buttons */}
+          <div className="form-group">
+            <label className="form-label">Physical State</label>
+            <div className="flex space-x-4 mt-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="physical_state"
+                  value="liquid"
+                  checked={formData.physical_state === 'liquid'}
+                  onChange={(e) => handlePhysicalStateChange(e.target.value)}
+                  className="mr-2"
+                />
+                <span>Liquid</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="physical_state"
+                  value="solid"
+                  checked={formData.physical_state === 'solid'}
+                  onChange={(e) => handlePhysicalStateChange(e.target.value)}
+                  className="mr-2"
+                />
+                <span>Solid</span>
+              </label>
+            </div>
+          </div>
+
           <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">
+                {formData.physical_state === 'liquid' ? 'Volume' : 'Weight'}
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                value={formData.unit}
+                onChange={(e) => setFormData({...formData, unit: e.target.value})}
+                placeholder={formData.physical_state === 'liquid' ? 'e.g., 500mL, 1L' : 'e.g., 100g, 1kg'}
+              />
+            </div>
+
             <div className="form-group">
               <label className="form-label">Initial Quantity</label>
               <input
@@ -197,28 +253,6 @@ const AddChemical = ({
                 onChange={(e) => setFormData({...formData, initial_quantity: e.target.value})}
               />
             </div>
-            <div className="form-group">
-              <label className="form-label">Current Quantity</label>
-              <input
-                type="number"
-                min="0"
-                className="form-input"
-                value={formData.current_quantity}
-                onChange={(e) => setFormData({...formData, current_quantity: e.target.value})}
-                placeholder="Same as initial"
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Volume</label>
-            <input
-              type="text"
-              className="form-input"
-              value={formData.volume}
-              onChange={(e) => setFormData({...formData, volume: e.target.value})}
-              placeholder="e.g., 500mL, 1L"
-            />
           </div>
 
           <div className="form-grid">
@@ -251,7 +285,7 @@ const AddChemical = ({
               value={formData.safety_class}
               onChange={(e) => setFormData({...formData, safety_class: e.target.value})}
             >
-              <option value="safe">Safe</option>
+              <option value="moderate-hazard">Moderate Hazard</option>
               <option value="toxic">Toxic</option>
               <option value="corrosive">Corrosive</option>
               <option value="reactive">Reactive</option>

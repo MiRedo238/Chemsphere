@@ -1,6 +1,6 @@
 // App.jsx
 import React, { useState, useEffect, useContext  } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Plus, Menu, X } from 'lucide-react';
 import Login from './components/Login';

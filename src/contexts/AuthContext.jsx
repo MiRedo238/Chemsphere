@@ -249,3 +249,23 @@ export const useAuth = () => {
   }
   return context;
 };
+
+const loginWithGoogle = async () => {
+  try {
+    setLoading(true);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback` // keep this — it will now point to your deployed domain
+      }
+    });
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('❌ Google login failed:', err);
+    setError(err.message);
+    throw err;
+  } finally {
+    setLoading(false);
+  }
+};

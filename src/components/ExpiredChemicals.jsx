@@ -18,9 +18,19 @@ const ExpiredChemicals = ({ setSelectedItem, setCurrentView, userRole, refreshDa
 
   // Filter only expired chemicals
   const expiredChemicals = chemicals.filter(chemical => {
-    const expirationDate = new Date(chemical.expiration_date);
-    const today = new Date();
-    return expirationDate < today;
+    if (!chemical.expiration_date) return false; // If no expiration date, it can't be expired
+    
+    try {
+      const expirationDate = new Date(chemical.expiration_date);
+      const today = new Date();
+      // Set both dates to start of day for accurate comparison
+      today.setHours(0, 0, 0, 0);
+      expirationDate.setHours(0, 0, 0, 0);
+      return expirationDate < today;
+    } catch (error) {
+      console.error('Invalid expiration date:', chemical.expiration_date, error);
+      return false; // If date parsing fails, don't show as expired
+    }
   });
 
   // Filter and sort expired chemicals
@@ -95,7 +105,7 @@ const ExpiredChemicals = ({ setSelectedItem, setCurrentView, userRole, refreshDa
   // Handle card click
   const handleChemicalClick = (chemical) => {
     if (!loading && !importLoading) {
-      setSelectedItem({...chemical, type: 'expired-chemicals'});
+      setSelectedItem({...chemical, type: 'chemical'}, 'expired-chemicals');
       setCurrentView('detail');
     }
   };

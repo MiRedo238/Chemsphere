@@ -9,7 +9,7 @@ import Modal from './Modal';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
 const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData }) => {
-  const { chemicals, setChemicals } = useContext(DatabaseContext);
+  const { chemicals, setChemicals, addAuditLog } = useContext(DatabaseContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('all');
   const [sortField, setSortField] = useState('name');
@@ -18,15 +18,24 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { addAuditLog } = useContext(DatabaseContext);
-  
+
   const isAdmin = userRole === 'admin';
 
   // Filter out expired chemicals from the main inventory
   const nonExpiredChemicals = chemicals.filter(chemical => {
-    const expirationDate = new Date(chemical.expiration_date);
-    const today = new Date();
-    return expirationDate >= today;
+    if (!chemical.expiration_date) return true; // If no expiration date, consider it not expired
+    
+    try {
+      const expirationDate = new Date(chemical.expiration_date);
+      const today = new Date();
+      // Set both dates to start of day for accurate comparison
+      today.setHours(0, 0, 0, 0);
+      expirationDate.setHours(0, 0, 0, 0);
+      return expirationDate >= today;
+    } catch (error) {
+      console.error('Invalid expiration date:', chemical.expiration_date, error);
+      return true; // If date parsing fails, show the chemical
+    }
   });
 
   // Filter and sort non-expired chemicals

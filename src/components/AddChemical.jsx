@@ -79,12 +79,11 @@ const AddChemical = ({
           action: 'add',
           item_name: newChemical.name, 
           user_role: userRole,         
-          user_name: user?.name || user?.username || 'System',            
+          user_name: user?.name || 'System',            
           details: {
             batchNumber: newChemical.batch_number,
             quantity: newChemical.initial_quantity,
             location: newChemical.location,
-            physicalState: newChemical.physical_state
           }
         });
       }

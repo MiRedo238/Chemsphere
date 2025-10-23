@@ -2,6 +2,30 @@
 import { supabase } from '../lib/supabase/supabaseClient';
 import { normalizeGhsSymbols } from '../utils/helpers';
 
+// Helper function to convert snake_case to camelCase for frontend
+const toCamelCase = (obj) => {
+  if (!obj || typeof obj !== 'object') return obj;
+  
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+    result[camelKey] = value;
+  }
+  return result;
+};
+
+// Helper function to convert camelCase to snake_case for database
+const toSnakeCase = (obj) => {
+  if (!obj || typeof obj !== 'object') return obj;
+  
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    result[snakeKey] = value;
+  }
+  return result;
+};
+
 // Chemicals API
 export const getChemicals = async () => {
   const { data, error } = await supabase
@@ -10,7 +34,9 @@ export const getChemicals = async () => {
     .order('name');
     
   if (error) throw error;
-  return data;
+  
+  // Convert snake_case to camelCase for frontend
+  return data.map(item => toCamelCase(item));
 };
 
 export const getChemical = async (id) => {
@@ -21,30 +47,45 @@ export const getChemical = async (id) => {
     .single();
     
   if (error) throw error;
-  return data;
+  
+  // Convert snake_case to camelCase for frontend
+  return toCamelCase(data);
 };
 
 export const createChemical = async (data) => {
+  // Convert camelCase to snake_case for database
+  const dbData = toSnakeCase(data);
+  
   const { data: newChemical, error } = await supabase
     .from('chemicals')
-    .insert([data])
+    .insert([dbData])
     .select()
     .single();
     
   if (error) throw error;
-  return newChemical;
+  
+  // Convert snake_case to camelCase for frontend
+  return toCamelCase(newChemical);
 };
 
 export const updateChemical = async (id, data) => {
+  // Convert camelCase to snake_case for database
+  const dbData = toSnakeCase(data);
+  
   const { data: updatedChemical, error } = await supabase
     .from('chemicals')
-    .update(data)
+    .update(dbData)
     .eq('id', id)
     .select()
     .single();
     
-  if (error) throw error;
-  return updatedChemical;
+  if (error) {
+    console.error('Error updating chemical:', error);
+    throw error;
+  }
+  
+  // Convert snake_case to camelCase for frontend
+  return toCamelCase(updatedChemical);
 };
 
 export const deleteChemical = async (id) => {
@@ -65,7 +106,9 @@ export const getEquipment = async () => {
     .order('name');
     
   if (error) throw error;
-  return data;
+  
+  // Convert snake_case to camelCase for frontend
+  return data.map(item => toCamelCase(item));
 };
 
 export const getEquipmentById = async (id) => {
@@ -76,30 +119,51 @@ export const getEquipmentById = async (id) => {
     .single();
     
   if (error) throw error;
-  return data;
+  
+  // Convert snake_case to camelCase for frontend
+  return toCamelCase(data);
 };
 
 export const createEquipment = async (data) => {
+  // Convert camelCase to snake_case for database
+  const dbData = toSnakeCase(data);
+  
   const { data: newEquipment, error } = await supabase
     .from('equipment')
-    .insert([data])
+    .insert([dbData])
     .select()
     .single();
     
   if (error) throw error;
-  return newEquipment;
+  
+  // Convert snake_case to camelCase for frontend
+  return toCamelCase(newEquipment);
 };
 
 export const updateEquipment = async (id, data) => {
+  // Convert camelCase to snake_case for database
+  const dbData = toSnakeCase(data);
+  
+  console.log('🔧 Updating equipment:', { id, originalData: data, dbData });
+  
   const { data: updatedEquipment, error } = await supabase
     .from('equipment')
-    .update(data)
+    .update(dbData)
     .eq('id', id)
     .select()
     .single();
     
-  if (error) throw error;
-  return updatedEquipment;
+  if (error) {
+    console.error('❌ Error updating equipment:', error);
+    throw error;
+  }
+  
+  console.log('✅ Equipment update successful:', updatedEquipment);
+  
+  // Convert snake_case to camelCase for frontend
+  const result = toCamelCase(updatedEquipment);
+  console.log('🔄 Converted result for frontend:', result);
+  return result;
 };
 
 export const deleteEquipment = async (id) => {
@@ -111,6 +175,8 @@ export const deleteEquipment = async (id) => {
   if (error) throw error;
   return true;
 };
+
+
 
 // Audit Logs API
 export const getAuditLogs = async () => {
@@ -130,13 +196,10 @@ export const getAuditLogs = async () => {
 export const logChemicalUsage = async (data) => {
   const { data: newLog, error } = await supabase
     .from('usage_logs')
-    .insert([{
-      ...data,
-      item_type: 'chemical'
-    }])
+    .insert([data])
     .select(`
       *,
-      chemical:chemicals(name)
+      chemical:chemicals(name, id)
     `)
     .single();
     
@@ -152,7 +215,6 @@ export const getChemicalUsageLogs = async (userId) => {
       chemical:chemicals(name, id)
     `)
     .eq('user_id', userId)
-    .eq('item_type', 'chemical')
     .order('created_at', { ascending: false });
     
   if (error) throw error;

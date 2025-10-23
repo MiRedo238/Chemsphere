@@ -132,10 +132,10 @@ function DashboardContent() {
         return (
           <ChemicalsList
             chemicals={chemicals}
-            setSelectedItem={setSelectedItem}
+            setSelectedItem={(item) => handleSetSelectedItem(item, 'chemicals')}
             setCurrentView={handleSetCurrentView}
             userRole={userRole}
-            updateChemicals={updateChemicals}
+            updateChemicals={setChemicals}
             addAuditLog={addAuditLog}
             refreshData={refreshData}
           />
@@ -145,7 +145,7 @@ function DashboardContent() {
         return (
           <EquipmentList
             equipment={equipment}
-            setSelectedItem={setSelectedItem}
+            setSelectedItem={(item) => handleSetSelectedItem(item, 'equipment')}
             setCurrentView={handleSetCurrentView}
             userRole={userRole}
             updateEquipment={updateEquipmentList}
@@ -191,9 +191,11 @@ function DashboardContent() {
       case 'expired-chemicals':
         return (
           <ExpiredChemicals 
-          setSelectedItem={setSelectedItem}
+          setSelectedItem={(item) => handleSetSelectedItem(item, 'expired-chemicals')}
           setCurrentView={setCurrentView}
           userRole={userRole}
+          updateChemicals={setChemicals} // This should update the context
+          addAuditLog={addAuditLog}
           refreshData={refreshData}
         />
         );

@@ -1,5 +1,29 @@
 import { supabase } from '../lib/supabase/supabaseClient';
 
+// Helper function to convert snake_case to camelCase for database
+const toCamelCase = (obj) => {
+  if (!obj) return obj;
+  
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+    result[camelKey] = value;
+  }
+  return result;
+};
+
+// Helper function to convert camelCase to snake_case for frontend
+const toSnakeCase = (obj) => {
+  if (!obj) return obj;
+  
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    result[snakeKey] = value;
+  }
+  return result;
+};
+
 export const getAllChemicals = async () => {
   try {
     const { data, error } = await supabase
@@ -8,7 +32,9 @@ export const getAllChemicals = async () => {
       .order('name');
 
     if (error) throw error;
-    return data;
+    
+    // Convert camelCase to snake_case for frontend
+    return data.map(item => toSnakeCase(item));
   } catch (error) {
     console.error('Error fetching chemicals:', error);
     throw error;
@@ -24,7 +50,9 @@ export const getChemicalById = async (id) => {
       .single();
 
     if (error) throw error;
-    return data;
+    
+    // Convert camelCase to snake_case for frontend
+    return toSnakeCase(data);
   } catch (error) {
     console.error('Error fetching chemical:', error);
     throw error;
@@ -33,14 +61,19 @@ export const getChemicalById = async (id) => {
 
 export const createChemical = async (chemicalData) => {
   try {
+    // Convert snake_case to camelCase for database
+    const dbData = toCamelCase(chemicalData);
+    
     const { data, error } = await supabase
       .from('chemicals')
-      .insert([chemicalData])
+      .insert([dbData])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    
+    // Convert camelCase to snake_case for frontend
+    return toSnakeCase(data);
   } catch (error) {
     console.error('Error creating chemical:', error);
     throw error;
@@ -49,15 +82,20 @@ export const createChemical = async (chemicalData) => {
 
 export const updateChemical = async (id, chemicalData) => {
   try {
+    // Convert snake_case to camelCase for database
+    const dbData = toCamelCase(chemicalData);
+    
     const { data, error } = await supabase
       .from('chemicals')
-      .update(chemicalData)
+      .update(dbData)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    
+    // Convert camelCase to snake_case for frontend
+    return toSnakeCase(data);
   } catch (error) {
     console.error('Error updating chemical:', error);
     throw error;
@@ -88,7 +126,9 @@ export const getExpiredChemicals = async () => {
       .order('expirationDate');
 
     if (error) throw error;
-    return data;
+    
+    // Convert camelCase to snake_case for frontend
+    return data.map(item => toSnakeCase(item));
   } catch (error) {
     console.error('Error fetching expired chemicals:', error);
     throw error;
@@ -104,7 +144,9 @@ export const getLowStockChemicals = async (threshold = 10) => {
       .order('quantity');
 
     if (error) throw error;
-    return data;
+    
+    // Convert camelCase to snake_case for frontend
+    return data.map(item => toSnakeCase(item));
   } catch (error) {
     console.error('Error fetching low stock chemicals:', error);
     throw error;

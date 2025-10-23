@@ -3,7 +3,12 @@ import React, { useState, useEffect, useContext } from 'react';
 import { ChevronLeft, Edit, Trash2, User, MapPin, Clock, Microscope } from 'lucide-react';
 import { safetyColors, statusColors, ghsSymbols } from '../utils/data';
 import { formatDate, normalizeGhsSymbols } from '../utils/helpers';
-import { updateChemical, deleteChemical, updateEquipment, deleteEquipment } from '../services/api';
+import { 
+  updateChemical as apiUpdateChemical, 
+  deleteChemical as apiDeleteChemical, 
+  updateEquipment as apiUpdateEquipment, 
+  deleteEquipment as apiDeleteEquipment 
+} from '../services/api';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
 const DetailView = ({ 
@@ -13,7 +18,7 @@ const DetailView = ({
   chemicals, 
   equipment, 
   updateChemicals, 
-  updateEquipment,
+  updateEquipment, // This is the prop function to update equipment list
   refreshData
 }) => {
   const [editing, setEditing] = useState(false);
@@ -24,7 +29,7 @@ const DetailView = ({
   
   const isAdmin = userRole === 'admin';
 
-  // Helper function to format dates for input fields - defined at the top level of component
+  // Helper function to format dates for input fields
   const formatDateForInput = (dateString) => {
     if (!dateString) return '';
     
@@ -75,10 +80,16 @@ const DetailView = ({
       setLoading(true);
       setError('');
       
-      // Create a clean copy for API request
+      // Create a clean copy for API request - exclude unused fields and assignedUserId
       const cleanData = Object.fromEntries(
         Object.entries(editForm)
-          .filter(([key]) => !['usage_log', 'type', 'maintenance_log', 'assigned_user_name'].includes(key))
+          .filter(([key]) => ![
+            'usage_log', 
+            'type', 
+            'maintenance_log', 
+            'assigned_user_name',
+            'assignedUserId' // Add this to the exclusion list
+          ].includes(key))
           .map(([key, value]) => {
             if (value === undefined || value === '') {
               return [key, null];
@@ -87,54 +98,62 @@ const DetailView = ({
           })
       );
       
-      console.log('Sending update data:', cleanData);
+      console.log('🔍 Sending update data:', cleanData);
       
       if (selectedItem.type === 'chemical') {
-        const updatedChemical = await updateChemical(selectedItem.id, cleanData);
+        console.log('🧪 Updating chemical...');
+        const updatedChemical = await apiUpdateChemical(selectedItem.id, cleanData);
+        console.log('✅ Chemical update response:', updatedChemical);
+        
         if (!updatedChemical || !updatedChemical.id) {
           throw new Error('Failed to update chemical: Invalid response from server');
         }
+        
         updateChemicals(chemicals.map(chem => 
           chem.id === selectedItem.id ? updatedChemical : chem
         ));
+        
         addAuditLog({
           type: 'chemical',
           action: 'update',
           itemName: updatedChemical.name,
-          user: userRole,
-          timestamp: new Date().toISOString(),
+          user_role: userRole,  
+          user_name: user?.name || user?.username || 'System',            
           details: { batchNumber: updatedChemical.batch_number }
         });
       } else {
-        const updatedEquipment = await updateEquipment(selectedItem.id, cleanData);
+        console.log('🔧 Updating equipment...');
+        const updatedEquipment = await apiUpdateEquipment(selectedItem.id, cleanData);
+        console.log('✅ Equipment update response:', updatedEquipment);
         
-        // Fix: Check if response is valid without requiring id field
         if (!updatedEquipment) {
           throw new Error('Failed to update equipment: Empty response from server');
         }
         
-        // Fix: Use the correct function to update equipment state
-        // The response should include the updated equipment data
-        const updatedEquipmentWithType = { ...updatedEquipment, type: 'equipment' };
-        
-        // Update the equipment list with the new data
+        // Use the prop function to update equipment list
         updateEquipment(equipment.map(eq => 
-          eq.id === selectedItem.id ? updatedEquipmentWithType : eq
+          eq.id === selectedItem.id ? { ...updatedEquipment, type: 'equipment' } : eq
         ));
         
         addAuditLog({
           type: 'equipment',
           action: 'update',
           itemName: updatedEquipment.name || selectedItem.name,
-          user: userRole,
-          timestamp: new Date().toISOString(),
-          details: { serialId: updatedEquipment.serial_id || selectedItem.serial_id }
-        });
+          user_role: userRole,  
+          user_name: user?.name || user?.username || 'System',            
+          details: { 
+              model: updatedEquipment.model,
+              serial_id: updatedEquipment.serial_id,
+              status: updatedEquipment.status,
+              condition: updatedEquipment.equipment_condition
+              }        
+          });
       }
       
       setEditing(false);
+      console.log('🎉 Update successful!');
     } catch (error) {
-      console.error('Failed to update:', error);
+      console.error('❌ Failed to update:', error);
       
       // More detailed error message
       if (error.response) {
@@ -162,7 +181,7 @@ const DetailView = ({
       setError('');
       
       if (selectedItem.type === 'chemical') {
-        await deleteChemical(selectedItem.id);
+        await apiDeleteChemical(selectedItem.id);
         updateChemicals(chemicals.filter(chem => chem.id !== selectedItem.id));
         addAuditLog({
           type: 'chemical',
@@ -173,7 +192,7 @@ const DetailView = ({
           details: { batchNumber: selectedItem.batch_number }
         });
       } else {
-        await deleteEquipment(selectedItem.id);
+        await apiDeleteEquipment(selectedItem.id);
         updateEquipment(equipment.filter(eq => eq.id !== selectedItem.id));
         addAuditLog({
           type: 'equipment',
@@ -211,6 +230,14 @@ const DetailView = ({
     });
   };
 
+  const handlePhysicalStateChange = (state) => {
+    setEditForm({ 
+      ...editForm, 
+      physical_state: state,
+      unit: '' // Clear unit when state changes
+    });
+  };
+
   const handleCancel = () => {
     // Reset form to original selectedItem values
     const cleanItem = { ...selectedItem };
@@ -234,7 +261,8 @@ const DetailView = ({
     setError('');
   };
 
-  if (selectedItem.type === 'chemical') {
+  // Render chemical details
+  const renderChemicalDetails = () => {
     const chemical = editing ? editForm : selectedItem;
     
     return (
@@ -316,19 +344,57 @@ const DetailView = ({
                   )}
                 </div>
                 
+                {/* Physical State Radio Buttons */}
                 <div className="detail-property">
-                  <span className="property-label">Volume:</span>
+                  <span className="property-label">Physical State:</span>
+                  {editing ? (
+                    <div className="flex space-x-4 mt-2">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="physical_state"
+                          value="liquid"
+                          checked={chemical.physical_state === 'liquid'}
+                          onChange={(e) => handlePhysicalStateChange(e.target.value)}
+                          className="mr-2"
+                          disabled={loading}
+                        />
+                        <span>Liquid</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="physical_state"
+                          value="solid"
+                          checked={chemical.physical_state === 'solid'}
+                          onChange={(e) => handlePhysicalStateChange(e.target.value)}
+                          className="mr-2"
+                          disabled={loading}
+                        />
+                        <span>Solid</span>
+                      </label>
+                    </div>
+                  ) : (
+                    <span className="property-value capitalize">{chemical.physical_state}</span>
+                  )}
+                </div>
+                
+                <div className="detail-property">
+                  <span className="property-label">
+                    {chemical.physical_state === 'liquid' ? 'Volume' : 'Weight'}:
+                  </span>
                   {editing ? (
                     <input
                       type="text"
-                      name="volume"
-                      value={chemical.volume || ''}
+                      name="unit"
+                      value={chemical.unit || ''}
                       onChange={handleInputChange}
                       className="form-input"
+                      placeholder={chemical.physical_state === 'liquid' ? 'e.g., 500mL, 1L' : 'e.g., 100g, 1kg'}
                       disabled={loading}
                     />
                   ) : (
-                    <span className="property-value">{chemical.volume}</span>
+                    <span className="property-value">{chemical.unit}</span>
                   )}
                 </div>
                 
@@ -502,7 +568,10 @@ const DetailView = ({
         </div>
       </div>
     );
-  } else {
+  };
+
+  // Render equipment details
+  const renderEquipmentDetails = () => {
     const equipmentItem = editing ? editForm : selectedItem;
     
     return (
@@ -681,7 +750,6 @@ const DetailView = ({
                   <span className="property-label">Next Maintenance:</span>
                   <span className="property-value">{formatDate(equipmentItem.next_maintenance)}</span>
                 </div>
-                
               </div>
             </div>
 
@@ -709,7 +777,10 @@ const DetailView = ({
         </div>
       </div>
     );
-  }
+  };
+
+  // Main render
+  return selectedItem.type === 'chemical' ? renderChemicalDetails() : renderEquipmentDetails();
 };
 
 export default DetailView;

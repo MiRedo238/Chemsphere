@@ -18,7 +18,7 @@ export function DatabaseProvider({ children }) {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+ 
   // Function to refresh audit logs
   const fetchAuditLogs = async () => {
     try {
@@ -73,6 +73,7 @@ export function DatabaseProvider({ children }) {
     }
     fetchData();
   }, []);
+  
 
   return (
     <DatabaseContext.Provider

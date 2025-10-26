@@ -15,6 +15,9 @@ import ExpiredChemicals from './components/ExpiredChemicals';
 import './App.css';
 import { DatabaseProvider, DatabaseContext } from './contexts/DatabaseContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import UserManagement from './components/UserManagement';
+import RouteGuard from './components/RouteGuard';
+import Unauthorized from './pages/Unauthorized';
 
 // Main Dashboard Component (Protected)
 function DashboardContent() {
@@ -201,16 +204,16 @@ function DashboardContent() {
         );
 
       case 'users':
-        return (
-          <div className="p-6">
-            <div className="detail-header">
-              <h1 className="detail-title">User Management</h1>
+        if (userRole !== 'admin') {
+          return (
+            <div className="p-6">
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                Access denied. Admin privileges required.
+              </div>
             </div>
-            <div className="bg-white rounded-lg p-6 shadow">
-              <p className="text-gray-600">User management functionality coming soon...</p>
-            </div>
-          </div>
-        );
+          );
+        }
+        return <UserManagement />;
 
       default:
         return (
@@ -324,6 +327,20 @@ function App() {
                 <Navigate to={user ? "/dashboard" : "/login"} replace />
               } 
             />
+
+            <Route path="/admin" element={
+              <RouteGuard requireAdmin={true}>
+                <UserManagement />
+              </RouteGuard>
+            } />
+
+            <Route path="/dashboard" element={
+              <RouteGuard>
+                <Dashboard />
+              </RouteGuard>
+            } />
+
+            <Route path="/unauthorized" element={<Unauthorized />} />
           </Routes>
           </ErrorBoundary>
         </div>

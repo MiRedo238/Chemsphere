@@ -22,27 +22,34 @@ const Dashboard = ({ userRole, refreshData }) => {
     const now = new Date();
     const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
 
-    // Filter chemicals expiring within 90 days
+    // 🔹 Near Expiration: within 90 days, soonest first
     const nearExpiration = chemicals
       .filter(chem => {
         if (!chem.expiration_date) return false;
         const expDate = new Date(chem.expiration_date);
         return expDate > now && expDate <= ninetyDaysFromNow;
       })
-      // ✅ Sort ascending (soonest expiration first)
       .sort((a, b) => new Date(a.expiration_date) - new Date(b.expiration_date));
 
-    const lowStock = chemicals.filter(
-      chem => chem.current_quantity > 0 && chem.current_quantity <= 5
-    );
+    // 🔹 Low Stock: ascending by quantity (least stock first)
+    const lowStock = chemicals
+      .filter(chem => chem.current_quantity > 0 && chem.current_quantity <= 5)
+      .sort((a, b) => a.current_quantity - b.current_quantity);
 
-    const expired = chemicals.filter(chem => {
-      const expirationDate = new Date(chem.expiration_date);
-      const today = new Date();
-      return expirationDate < today;
-    });
+    // 🔹 Expired: earliest expired first
+    const expired = chemicals
+      .filter(chem => {
+        if (!chem.expiration_date) return false;
+        const expirationDate = new Date(chem.expiration_date);
+        const today = new Date();
+        return expirationDate < today;
+      })
+      .sort((a, b) => new Date(a.expiration_date) - new Date(b.expiration_date));
 
-    const outOfStock = chemicals.filter(chem => chem.current_quantity === 0);
+    // 🔹 Out of Stock: alphabetical by chemical name
+    const outOfStock = chemicals
+      .filter(chem => chem.current_quantity === 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     setDashboardData({
       nearExpiration,
@@ -51,6 +58,7 @@ const Dashboard = ({ userRole, refreshData }) => {
       outOfStock
     });
   };
+
 
 
   const handleAddChemical = (newChemical) => {

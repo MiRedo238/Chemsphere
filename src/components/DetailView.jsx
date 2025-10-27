@@ -7,9 +7,68 @@ import {
   updateChemical as apiUpdateChemical, 
   deleteChemical as apiDeleteChemical, 
   updateEquipment as apiUpdateEquipment, 
-  deleteEquipment as apiDeleteEquipment 
+  deleteEquipment as apiDeleteEquipment,
+  getChemicalUsageLogs
 } from '../services/api';
 import { DatabaseContext } from '../contexts/DatabaseContext';
+import { supabase } from '../lib/supabase/supabaseClient';
+
+// Helper function to get user display name (same as in Sidebar and LogChemicalUsage)
+const getUserDisplayName = (user) => {
+  if (!user) return 'System';
+  
+  // Try to get name from user_metadata (Supabase Auth)
+  const userName = user.user_metadata?.name || 
+                  user.user_metadata?.full_name || 
+                  user.user_metadata?.username;
+  
+  if (userName) return userName;
+  
+  // Fallback: use email username with nice formatting
+  if (user.email) {
+    const emailUsername = user.email.split('@')[0];
+    const formattedUsername = emailUsername
+      .split(/[._]/)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+    
+    return formattedUsername;
+  }
+  
+  return 'System';
+};
+
+// Helper function to safely normalize GHS symbols
+const safeNormalizeGhsSymbols = (symbols) => {
+  if (!symbols) return [];
+  
+  try {
+    // If it's already an array, return it
+    if (Array.isArray(symbols)) {
+      return symbols;
+    }
+    
+    // If it's a string, try to parse as JSON first, otherwise treat as single symbol
+    if (typeof symbols === 'string') {
+      // Try to parse as JSON array
+      try {
+        const parsed = JSON.parse(symbols);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch (e) {
+        // If JSON parsing fails, treat the string as a single symbol
+        console.log('GHS symbols is a string, not JSON. Using as single symbol:', symbols);
+        return [symbols];
+      }
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Error normalizing GHS symbols:', error);
+    return [];
+  }
+};
 
 const DetailView = ({ 
   selectedItem, 
@@ -25,6 +84,7 @@ const DetailView = ({
   const [editForm, setEditForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [usageLogs, setUsageLogs] = useState([]);
   const { user, addAuditLog } = useContext(DatabaseContext);
   
   const isAdmin = userRole === 'admin';
@@ -66,10 +126,43 @@ const DetailView = ({
     );
   };
 
+  // Fetch usage logs for chemical
+  const fetchChemicalUsageLogs = async (chemicalId) => {
+    try {
+      console.log('🔍 Fetching usage logs for chemical:', chemicalId);
+      
+      const { data, error } = await supabase
+        .from('usage_logs')
+        .select('*')
+        .eq('chemical_id', chemicalId)
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching usage logs:', error);
+        throw error;
+      }
+
+      console.log('✅ Usage logs fetched:', data);
+      return data || [];
+    } catch (error) {
+      console.error('Failed to fetch usage logs:', error);
+      return [];
+    }
+  };
+
   // Effects
   useEffect(() => {
     if (selectedItem) {
       setEditForm(initializeEditForm(selectedItem));
+      
+      // Fetch usage logs when chemical is selected
+      if (isChemical) {
+        const loadUsageLogs = async () => {
+          const logs = await fetchChemicalUsageLogs(selectedItem.id);
+          setUsageLogs(logs);
+        };
+        loadUsageLogs();
+      }
     }
   }, [selectedItem]);
 
@@ -129,7 +222,7 @@ const DetailView = ({
           action: 'update',
           itemName: updatedItem.name,
           user_role: userRole,  
-          user_name: user?.name || user?.username || 'System',            
+          user_name: getUserDisplayName(user) || 'System',            
           details: { batchNumber: updatedItem.batch_number }
         };
       } else {
@@ -150,7 +243,7 @@ const DetailView = ({
           action: 'update',
           itemName: updatedItem.name || selectedItem.name,
           user_role: userRole,  
-          user_name: user?.name || user?.username || 'System',            
+          user_name: getUserDisplayName(user) || 'System',            
           details: { 
             model: updatedItem.model,
             serial_id: updatedItem.serial_id,
@@ -190,7 +283,7 @@ const DetailView = ({
           action: 'delete',
           item_name: selectedItem.name,
           user_role: userRole,         
-          user_name: user?.name || user?.username || 'System', 
+          user_name: getUserDisplayName(user) || 'System', 
           details: { batchNumber: selectedItem.batch_number }
         };
       } else {
@@ -201,7 +294,7 @@ const DetailView = ({
           action: 'delete',
           item_name: selectedItem.name,
           user_role: userRole,         
-          user_name: user?.name || user?.username || 'System', 
+          user_name: getUserDisplayName(user) || 'System', 
           details: { serialId: selectedItem.serial_id }
         };
       }
@@ -388,7 +481,7 @@ const DetailView = ({
           <div className="detail-property">
             <span className="property-label">GHS Symbols:</span>
             <div className="ghs-symbols">
-              {normalizeGhsSymbols(chemical.ghs_symbols).map(symbol => {
+              {safeNormalizeGhsSymbols(chemical.ghs_symbols).map(symbol => {
                 const imgSrc = ghsSymbols[symbol];
                 if (!imgSrc) {
                   return (
@@ -500,10 +593,11 @@ const DetailView = ({
   };
 
   const renderUsageLog = () => {
-    const item = editing ? editForm : selectedItem;
-    const logs = isChemical ? item.usage_log : item.maintenance_log;
     const title = isChemical ? 'Usage Log' : 'Maintenance Log';
     const emptyMessage = isChemical ? 'No usage recorded' : 'No maintenance recorded';
+
+    // Use fetched usage logs for chemicals, fallback to item data for equipment
+    const logs = isChemical ? usageLogs : (selectedItem?.maintenance_log || []);
 
     return (
       <div>
@@ -519,7 +613,7 @@ const DetailView = ({
                   {isChemical && (
                     <p className="log-location">
                       <MapPin size={12} className="inline mr-1" />
-                      {log.location}
+                      {log.location || 'N/A'}
                     </p>
                   )}
                   {!isChemical && (
@@ -537,7 +631,10 @@ const DetailView = ({
                 </div>
               </div>
               {isChemical && log.opened && <span className="log-tag">Opened</span>}
-              {!isChemical && log.notes && (
+              {isChemical && log.remaining_amount && (
+                <span className="log-tag">{log.remaining_amount}mL remaining</span>
+              )}
+              {log.notes && (
                 <p className="text-xs text-gray-500 mt-1">{log.notes}</p>
               )}
             </div>

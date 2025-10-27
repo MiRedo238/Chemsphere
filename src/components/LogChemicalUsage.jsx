@@ -21,6 +21,33 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
+// Helper function to get user display name (same as in Sidebar)
+const getUserDisplayName = (user) => {
+  if (!user) return '';
+  
+  // Try to get name from user_metadata (Supabase Auth)
+  const userName = user.user_metadata?.name || 
+                  user.user_metadata?.full_name || 
+                  user.user_metadata?.username;
+  
+  if (userName) {
+    return userName;
+  }
+  
+  // Fallback: use email username with nice formatting
+  if (user.email) {
+    const emailUsername = user.email.split('@')[0];
+    const formattedUsername = emailUsername
+      .split(/[._]/)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+    
+    return formattedUsername;
+  }
+  
+  return '';
+};
+
 // Constants
 const TABS = {
   LOG: 'log',
@@ -47,7 +74,7 @@ const LogChemicalUsage = ({
   
   // State
   const [selectedChemicals, setSelectedChemicals] = useState([]);
-  const [user, setUser] = useState(authUser?.name || authUser?.username || currentUser?.name || '');
+  const [user, setUser] = useState(getUserDisplayName(authUser) || getUserDisplayName(currentUser) || '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [activeTab, setActiveTab] = useState(TABS.LOG);
@@ -59,8 +86,8 @@ const LogChemicalUsage = ({
   // Derived state
   const availableChemicals = chemicals.filter(c => c.current_quantity > 0);
   const allUsers = [...new Set([
-    authUser?.name || authUser?.username,
-    currentUser?.name,
+    getUserDisplayName(authUser),
+    getUserDisplayName(currentUser),
     ...chemicals.flatMap(c => c.usage_log ? c.usage_log.map(u => u.user_name) : [])
   ].filter(Boolean))].map(user => ({ user }));
 
@@ -70,6 +97,12 @@ const LogChemicalUsage = ({
       fetchUserLogs();
     }
   }, [activeTab, authUser]);
+
+  // Update user name when authUser or currentUser changes
+  useEffect(() => {
+    const userName = getUserDisplayName(authUser) || getUserDisplayName(currentUser) || '';
+    setUser(userName);
+  }, [authUser, currentUser]);
 
   // API Calls
   const fetchUserLogs = async () => {
@@ -211,7 +244,7 @@ const LogChemicalUsage = ({
 
   const resetForm = () => {
     setSelectedChemicals([]);
-    setUser(authUser?.name || authUser?.username || currentUser?.name || '');
+    setUser(getUserDisplayName(authUser) || getUserDisplayName(currentUser) || '');
     setDate(new Date().toISOString().split('T')[0]);
     setNotes('');
   };
@@ -306,7 +339,7 @@ const LogChemicalUsage = ({
     }
   };
 
-  // Render Components
+  // Render Components (remain the same as original)
   const renderTabNavigation = () => (
     <div className="flex border-b border-gray-200 mb-6">
       <button

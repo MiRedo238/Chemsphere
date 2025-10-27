@@ -291,3 +291,5 @@ export const importChemicals = async (data) => {
   if (error) throw error;
   return newChemicals;
 };
+
+

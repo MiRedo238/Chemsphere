@@ -63,38 +63,37 @@ export const userService = {
   },
 
   // In userService.js - fix the update method
-  async verifyUserDirect(id) {
-    try {
-      console.log('Direct verify user:', id);
-      
-      // Update without expecting return data
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ 
+    async verifyUserDirect(id) {
+      try {
+        console.log('Direct verify user:', id);
+        
+        const { error } = await supabase
+          .from('users')
+          .update({ 
+            verified: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id);
+
+        if (error) {
+          console.error('Direct verify update error:', error);
+          throw error;
+        }
+
+        console.log('Verification update successful');
+        
+        // Return success object
+        return { 
+          id: id, 
           verified: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id);
-
-      if (updateError) {
-        console.error('Direct verify update error:', updateError);
-        throw updateError;
+          success: true 
+        };
+        
+      } catch (error) {
+        console.error('Error in direct verify:', error);
+        throw error;
       }
-
-      console.log('Verification update successful');
-      
-      // Return a simple success object
-      return { 
-        id: id, 
-        verified: true,
-        success: true 
-      };
-      
-    } catch (error) {
-      console.error('Error in direct verify:', error);
-      throw error;
-    }
-  },
+    },
 
   // ===== USER STATUS MANAGEMENT =====
   async updateRole(id, role) {
@@ -161,6 +160,46 @@ export const userService = {
     }
   },
 
+ async update(id, updates) {
+    try {
+      // Debug: Check current user and their role
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      console.log('👤 Current user:', currentUser?.id);
+      
+      // Check if current user is admin
+      const { data: currentUserData } = await supabase
+        .from('users')
+        .select('role, username')
+        .eq('id', currentUser?.id)
+        .single();
+      
+      console.log('🎭 Current user role:', currentUserData?.role);
+      console.log('🎯 Target user ID:', id);
+      console.log('📝 Updates:', updates);
+      
+      const { data, error, status } = await supabase
+        .from('users')
+        .update({ 
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select();
+
+      console.log('📊 Update response:', { status, error, data });
+
+      if (error) {
+        console.error('❌ Update failed:', error);
+        throw error;
+      }
+
+      return data?.[0] || { id, ...updates, success: true };
+      
+    } catch (error) {
+      console.error('❌ Update error:', error);
+      throw error;
+    }
+  },
   // ===== USER DELETION MANAGEMENT =====
   async deleteUser(id) {
     try {

@@ -6,15 +6,6 @@ export const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
-// Calculate days until expiration
-export const daysUntilExpiration = (expirationDate) => {
-  if (!expirationDate) return Infinity;
-  const expDate = new Date(expirationDate);
-  const today = new Date();
-  const diffTime = expDate - today;
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-};
-
 // Filter chemicals by search term (FIXED for backend compatibility)
 export const filterChemicals = (chemicals, searchTerm, filterClass, sortBy = 'name', sortOrder = 'asc') => {
   let filtered = chemicals.filter(chem => {

@@ -20,12 +20,13 @@ const Dashboard = ({ userRole, refreshData }) => {
 
   const calculateDashboardData = () => {
     const now = new Date();
-    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    
+    const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
     const nearExpiration = chemicals.filter(chem => {
       if (!chem.expiration_date) return false;
       const expDate = new Date(chem.expiration_date);
-      return expDate > now && expDate <= thirtyDaysFromNow;
+      // Check if expiration is within 90 days from now
+      return expDate > now && expDate <= ninetyDaysFromNow;
     });
 
     const lowStock = chemicals.filter(chem => 

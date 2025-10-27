@@ -22,26 +22,27 @@ const Dashboard = ({ userRole, refreshData }) => {
     const now = new Date();
     const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
 
-    const nearExpiration = chemicals.filter(chem => {
-      if (!chem.expiration_date) return false;
-      const expDate = new Date(chem.expiration_date);
-      // Check if expiration is within 90 days from now
-      return expDate > now && expDate <= ninetyDaysFromNow;
-    });
+    // Filter chemicals expiring within 90 days
+    const nearExpiration = chemicals
+      .filter(chem => {
+        if (!chem.expiration_date) return false;
+        const expDate = new Date(chem.expiration_date);
+        return expDate > now && expDate <= ninetyDaysFromNow;
+      })
+      // ✅ Sort ascending (soonest expiration first)
+      .sort((a, b) => new Date(a.expiration_date) - new Date(b.expiration_date));
 
-    const lowStock = chemicals.filter(chem => 
-      chem.current_quantity > 0 && chem.current_quantity <= 5
+    const lowStock = chemicals.filter(
+      chem => chem.current_quantity > 0 && chem.current_quantity <= 5
     );
 
     const expired = chemicals.filter(chem => {
-        const expirationDate = new Date(chem.expiration_date);
-        const today = new Date();
-        return expirationDate < today;
+      const expirationDate = new Date(chem.expiration_date);
+      const today = new Date();
+      return expirationDate < today;
     });
 
-    const outOfStock = chemicals.filter(chem => 
-      chem.current_quantity === 0
-    );
+    const outOfStock = chemicals.filter(chem => chem.current_quantity === 0);
 
     setDashboardData({
       nearExpiration,
@@ -50,6 +51,7 @@ const Dashboard = ({ userRole, refreshData }) => {
       outOfStock
     });
   };
+
 
   const handleAddChemical = (newChemical) => {
     // Optionally update chemicals state here if needed

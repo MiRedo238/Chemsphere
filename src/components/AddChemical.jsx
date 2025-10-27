@@ -68,7 +68,7 @@ const AddChemical = ({
 
       // Fixed: Use setChemicals instead of undefined updateChemicals
       if (fetchChemicals) {
-        await fetchChemicals();
+        await fetchChemicals(true);
       } 
 
       if (addAuditLog) {

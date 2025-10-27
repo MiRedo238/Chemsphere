@@ -6,6 +6,7 @@ export const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
+
 // Filter chemicals by search term (FIXED for backend compatibility)
 export const filterChemicals = (chemicals, searchTerm, filterClass, sortBy = 'name', sortOrder = 'asc') => {
   let filtered = chemicals.filter(chem => {

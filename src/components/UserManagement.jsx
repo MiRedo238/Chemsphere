@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { userService } from '../services/userService';
 import { auditService } from '../services/auditService';
-import { supabase } from '../lib/supabase/supabaseClient';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 const UserManagement = () => {
@@ -92,10 +91,7 @@ const UserManagement = () => {
       
       console.log('Verifying user:', userId);
       
-      // Use the direct method or the fixed update method
       const result = await userService.update(userId, { verified: true });
-      // OR use the direct method:
-      // const result = await userService.verifyUserDirect(userId);
       
       console.log('Verification response:', result);
       
@@ -131,25 +127,10 @@ const UserManagement = () => {
     setDeleteModalOpen(true);
   };
 
-  const handleDeleteConfirm = async (password) => {
+  const handleDeleteConfirm = async () => {
     try {
       setActionLoading(`delete-${userToDelete.id}`);
       setError('');
-      
-      // Get current admin user
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
-      if (!currentUser) {
-        throw new Error('You must be logged in to perform this action');
-      }
-
-      // Verify password first
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: currentUser.email,
-        password: password
-      });
-
-      if (authError) throw new Error('Invalid password');
 
       // Mark user for deletion
       await userService.deleteUser(userToDelete.id);
@@ -172,22 +153,6 @@ const UserManagement = () => {
       console.error('Delete user error:', err);
     } finally {
       setActionLoading(null);
-    }
-  };
-
-  const getLastLoginStatus = (user) => {
-    if (!user.last_login) return { status: 'Never logged in', color: 'bg-gray-100 text-gray-800' };
-    
-    const lastLoginDate = new Date(user.last_login);
-    const now = new Date();
-    const monthsDiff = (now.getTime() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
-    
-    if (monthsDiff >= 6) {
-      return { status: 'Inactive (6+ months)', color: 'bg-red-100 text-red-800' };
-    } else if (monthsDiff >= 3) {
-      return { status: 'Warning (3-6 months)', color: 'bg-orange-100 text-orange-800' };
-    } else {
-      return { status: 'Active', color: 'bg-green-100 text-green-800' };
     }
   };
 
@@ -248,14 +213,11 @@ const UserManagement = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {verifiedUsers.map((user) => {
-                const loginStatus = getLastLoginStatus(user);
-                
                 return (
                   <tr key={user.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -281,22 +243,6 @@ const UserManagement = () => {
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col space-y-1">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${loginStatus.color}`}>
-                          {user.active ? loginStatus.status : 'Manually Inactive'}
-                        </span>
-                        {!user.active && (
-                          <button
-                            onClick={() => handleToggleUserStatus(user.id, user.active)}
-                            disabled={actionLoading === `status-${user.id}` || user.marked_for_deletion}
-                            className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                          >
-                            Reactivate
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex space-x-2">
                         {user.active && (
                           <button
@@ -305,6 +251,15 @@ const UserManagement = () => {
                             className="bg-red-100 text-red-600 px-3 py-1 rounded text-sm font-medium hover:bg-red-200 disabled:opacity-50"
                           >
                             {actionLoading === `status-${user.id}` ? 'Loading...' : 'Deactivate'}
+                          </button>
+                        )}
+                        {!user.active && (
+                          <button
+                            onClick={() => handleToggleUserStatus(user.id, user.active)}
+                            disabled={actionLoading === `status-${user.id}` || user.marked_for_deletion}
+                            className="bg-green-100 text-green-600 px-3 py-1 rounded text-sm font-medium hover:bg-green-200 disabled:opacity-50"
+                          >
+                            {actionLoading === `status-${user.id}` ? 'Loading...' : 'Reactivate'}
                           </button>
                         )}
                         <button

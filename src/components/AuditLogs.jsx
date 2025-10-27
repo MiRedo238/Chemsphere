@@ -9,8 +9,11 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
 
   // Fetch audit logs when component mounts
   useEffect(() => {
-    fetchAuditLogs();
-  }, [fetchAuditLogs]);
+    // Only fetch if no logs yet
+    if (!auditLogs || auditLogs.length === 0) {
+      fetchAuditLogs();
+  }
+}, []);
 
   const getActionIcon = (type) => {
     switch (type) {

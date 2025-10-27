@@ -2,24 +2,39 @@ import { supabase } from '../lib/supabase/supabaseClient';
 
 export const logChemicalUsage = async (usageData) => {
   try {
+    // First, get the current chemical to check quantity
+    const { data: chemical, error: chemError } = await supabase
+      .from('chemicals')
+      .select('current_quantity')
+      .eq('id', usageData.chemical_id)
+      .single();
+
+    if (chemError) throw chemError;
+
+    // Check if there's enough quantity
+    if (chemical.current_quantity < usageData.quantity) {
+      throw new Error(`Insufficient quantity. Available: ${chemical.current_quantity}`);
+    }
+
+    // Insert the usage log
     const { data, error } = await supabase
       .from('chemical_usage')
       .insert([{
         ...usageData,
-        loggedAt: new Date().toISOString()
+        logged_at: new Date().toISOString()
       }])
       .select()
       .single();
 
     if (error) throw error;
 
-    // Update chemical quantity
+    // Update chemical quantity - subtract the used amount
     const { error: updateError } = await supabase
       .from('chemicals')
       .update({ 
-        quantity: supabase.raw(`quantity - ${usageData.quantityUsed}`)
+        current_quantity: chemical.current_quantity - usageData.quantity
       })
-      .eq('id', usageData.chemicalId);
+      .eq('id', usageData.chemical_id);
 
     if (updateError) throw updateError;
 

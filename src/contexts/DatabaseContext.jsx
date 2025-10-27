@@ -58,6 +58,10 @@ export function DatabaseProvider({ children }) {
     }
   };
 
+  const refreshChemicals = async () => {
+    return await fetchChemicals(true);
+  };
+
   // ✅ Fetch equipment (with cache)
   const fetchEquipment = async (force = false) => {
     if (!force && equipment.length > 0 && !shouldRefetch('equipment')) {
@@ -170,6 +174,7 @@ export function DatabaseProvider({ children }) {
         setChemicals,
         fetchChemicals,
         addChemical,
+        refreshChemicals,
         equipment,
         setEquipment,
         fetchEquipment,

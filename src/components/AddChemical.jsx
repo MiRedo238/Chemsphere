@@ -11,7 +11,7 @@ const AddChemical = ({
   onClose, 
   loading 
 }) => {
-  const { chemicals, setChemicals } = useContext(DatabaseContext);
+  const { chemicals, setChemicals, fetchChemicals, addAuditLog, user } = useContext(DatabaseContext);
   const [formData, setFormData] = useState({
     name: '',
     batch_number: '',
@@ -45,8 +45,6 @@ const AddChemical = ({
   const chemicalBrands = [...new Set(chemicals.map(c => c.brand))].map(brand => ({ brand }));
   const chemicalLocations = [...new Set(chemicals.map(c => c.location))].map(location => ({ location }));
 
-  const { user, addAuditLog } = useContext(DatabaseContext);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -69,9 +67,9 @@ const AddChemical = ({
       });
 
       // Fixed: Use setChemicals instead of undefined updateChemicals
-      if (setChemicals) {
-        setChemicals(prev => [...prev, newChemical]);
-      }
+      if (fetchChemicals) {
+        await fetchChemicals();
+      } 
 
       if (addAuditLog) {
         addAuditLog({

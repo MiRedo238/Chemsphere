@@ -1,3 +1,4 @@
+// DatabaseContext.jsx
 import { createContext, useState, useEffect, useContext } from 'react';
 import {
   getChemicals,
@@ -6,7 +7,7 @@ import {
   addUsageLog,
   getUsageLogs,
   getAuditLogs,
-  addAuditLog // Make sure this is imported
+  addAuditLog
 } from '../services/database';
 
 export const DatabaseContext = createContext();
@@ -18,7 +19,29 @@ export function DatabaseProvider({ children }) {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
- 
+
+  // Define fetchChemicals function
+  const fetchChemicals = async () => {
+    try {
+      const result = await getChemicals();
+      setChemicals(result.data || []);
+    } catch (err) {
+      console.error('Error fetching chemicals:', err);
+      throw err;
+    }
+  };
+
+  // Define fetchEquipment function
+  const fetchEquipment = async () => {
+    try {
+      const result = await getEquipment();
+      setEquipment(result.data || []);
+    } catch (err) {
+      console.error('Error fetching equipment:', err);
+      throw err;
+    }
+  };
+
   // Function to refresh audit logs
   const fetchAuditLogs = async () => {
     try {
@@ -33,7 +56,6 @@ export function DatabaseProvider({ children }) {
   const addAuditLogEntry = async (logData) => {
     try {
       const result = await addAuditLog(logData);
-      // Refresh audit logs after adding new one
       await fetchAuditLogs();
       return result;
     } catch (err) {
@@ -52,7 +74,7 @@ export function DatabaseProvider({ children }) {
           getChemicals(),
           getEquipment(),
           getUsageLogs(),
-          getAuditLogs() // Make sure this is called
+          getAuditLogs()
         ]);
 
         setChemicals(chemicalsResult.status === 'fulfilled' ? (chemicalsResult.value.data || []) : []);
@@ -74,22 +96,23 @@ export function DatabaseProvider({ children }) {
     fetchData();
   }, []);
   
-
   return (
     <DatabaseContext.Provider
       value={{
         chemicals,
         setChemicals,
+        fetchChemicals, 
         addChemical,
         equipment,
         setEquipment,
+        fetchEquipment,
         usageLogs,
         setUsageLogs,
         addUsageLog,
         auditLogs,
         setAuditLogs,
-        fetchAuditLogs, // Add this function
-        addAuditLog: addAuditLogEntry, // Add this function
+        fetchAuditLogs,
+        addAuditLog: addAuditLogEntry,
         loading,
         error
       }}

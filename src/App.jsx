@@ -134,12 +134,9 @@ function DashboardContent() {
       case 'chemicals':
         return (
           <ChemicalsList
-            chemicals={chemicals}
             setSelectedItem={(item) => handleSetSelectedItem(item, 'chemicals')}
             setCurrentView={handleSetCurrentView}
             userRole={userRole}
-            updateChemicals={setChemicals}
-            addAuditLog={addAuditLog}
             refreshData={refreshData}
           />
         );

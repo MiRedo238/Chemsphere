@@ -28,6 +28,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
     try {
       const expirationDate = new Date(chemical.expiration_date);
       const today = new Date();
+      if (isNaN(expirationDate.getTime())) return true;
       // Set both dates to start of day for accurate comparison
       today.setHours(0, 0, 0, 0);
       expirationDate.setHours(0, 0, 0, 0);

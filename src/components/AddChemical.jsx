@@ -199,28 +199,28 @@ const AddChemical = ({
           {/* Physical State Radio Buttons */}
           <div className="form-group">
             <label className="form-label">Physical State</label>
-            <div className="flex space-x-4 mt-2">
-              <label className="flex items-center">
+            <div className="physical-state-options">
+              <label className={`physical-state-option ${formData.physical_state === 'liquid' ? 'active' : ''}`}>
                 <input
                   type="radio"
                   name="physical_state"
                   value="liquid"
                   checked={formData.physical_state === 'liquid'}
                   onChange={(e) => handlePhysicalStateChange(e.target.value)}
-                  className="mr-2"
+                  className="physical-state-radio"
                 />
-                <span>Liquid</span>
+                <span className="physical-state-label">Liquid</span>
               </label>
-              <label className="flex items-center">
+              <label className={`physical-state-option ${formData.physical_state === 'solid' ? 'active' : ''}`}>
                 <input
                   type="radio"
                   name="physical_state"
                   value="solid"
                   checked={formData.physical_state === 'solid'}
                   onChange={(e) => handlePhysicalStateChange(e.target.value)}
-                  className="mr-2"
+                  className="physical-state-radio"
                 />
-                <span>Solid</span>
+                <span className="physical-state-label">Solid</span>
               </label>
             </div>
           </div>
@@ -292,16 +292,16 @@ const AddChemical = ({
 
           <div className="form-group">
             <label className="form-label">GHS Symbols</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+            <div className="ghs-symbols-grid">
               {ghsOptions.map(option => (
-                <label key={option.value} className="flex items-center">
+                <label key={option.value} className="ghs-checkbox-label">
                   <input
                     type="checkbox"
                     checked={formData.ghs_symbols.includes(option.value)}
                     onChange={() => handleGhsChange(option.value)}
-                    className="mr-2"
+                    className="ghs-checkbox"
                   />
-                  <span className="text-sm">{option.label}</span>
+                  <span className="ghs-checkbox-text">{option.label}</span>
                 </label>
               ))}
             </div>

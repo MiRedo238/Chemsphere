@@ -18,6 +18,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import UserManagement from './components/UserManagement';
 import RouteGuard from './components/RouteGuard';
 import Unauthorized from './pages/Unauthorized';
+import VerificationPending from './components/VerificationPending';
 
 // Main Dashboard Component (Protected)
 function DashboardContent() {
@@ -272,12 +273,12 @@ function LoadingScreen() {
 
 // Main App Component with Routing
 function App() {
-  const { user, loading, userRole } = useAuth();
+  const { user, loading, isLockedOut } = useAuth();
 
   console.log('🔍 App.jsx - Auth State:', { 
     loading, 
-    user: user ? user.email : 'null', 
-    userRole 
+    user: user ? user.email : 'null',
+    isLockedOut
   });
 
   // Show loading screen while checking authentication
@@ -294,19 +295,23 @@ function App() {
         <div className="app">
           <ErrorBoundary>
             <Routes>
-            {/* Public route - redirect to dashboard if already authenticated */}
+            {/* Public route - redirect to dashboard if already authenticated and verified */}
             <Route 
               path="/login" 
               element={
-                user ? <Navigate to="/dashboard" replace /> : <Login />
+                user && !isLockedOut ? <Navigate to="/dashboard" replace /> : <Login />
               } 
             />
             
-            {/* Protected routes - redirect to login if not authenticated */}
+            {/* Protected routes - redirect to appropriate screens */}
             <Route 
               path="/dashboard" 
               element={
-                user ? <DashboardContent /> : <Navigate to="/login" replace />
+                user ? (
+                  isLockedOut ? <VerificationPending /> : <DashboardContent />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
               } 
             />
             
@@ -314,7 +319,7 @@ function App() {
             <Route 
               path="/" 
               element={
-                <Navigate to={user ? "/dashboard" : "/login"} replace />
+                <Navigate to={user ? (isLockedOut ? "/dashboard" : "/dashboard") : "/login"} replace />
               } 
             />
             
@@ -322,7 +327,7 @@ function App() {
             <Route 
               path="*" 
               element={
-                <Navigate to={user ? "/dashboard" : "/login"} replace />
+                <Navigate to={user ? (isLockedOut ? "/dashboard" : "/dashboard") : "/login"} replace />
               } 
             />
 

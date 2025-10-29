@@ -107,6 +107,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Add helper function to check if user is locked out
+  const isLockedOut = () => {
+    return user && (!userVerified || !userActive);
+  };
+
+  // Helper function to check if user can access protected content
+  const canAccess = () => {
+    return user && userVerified && userActive;
+  };
+
+  // Helper function to check if user is admin
+  const isAdmin = () => {
+    return user && userRole === 'admin' && userVerified && userActive;
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -265,16 +280,6 @@ export const AuthProvider = ({ children }) => {
 
   const clearError = () => setError(null);
 
-  // Helper function to check if user can access protected content
-  const canAccess = () => {
-    return user && userVerified && userActive;
-  };
-
-  // Helper function to check if user is admin
-  const isAdmin = () => {
-    return user && userRole === 'admin' && userVerified && userActive;
-  };
-
   return (
     <AuthContext.Provider value={{ 
       user,
@@ -283,11 +288,12 @@ export const AuthProvider = ({ children }) => {
       userActive,
       loading,
       error,
+      isLockedOut: isLockedOut(), // Add computed locked out status
       loginWithGoogle,
       logout,
       clearError,
-      canAccess,
-      isAdmin
+      canAccess: canAccess(),
+      isAdmin: isAdmin()
     }}>
       {children}
     </AuthContext.Provider>

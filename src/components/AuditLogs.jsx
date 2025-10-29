@@ -211,40 +211,15 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
             onClick={() => setCurrentView('dashboard')}
             className="back-button"
           >
-            <ChevronLeft className="back-button-icon" />
-            Back to Dashboard
+            <ChevronLeft className="back-icon" />
           </button>
-          <h1 className="detail-title">Audit Logs</h1>
+          <h1 className="detail-title">
+            <FileText className="inline mr-2" />
+            Audit Logs
+          </h1>
         </div>
         <div className="loading-container">
-          <div className="loading-spinner"></div>
           <p>Loading audit logs...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div>
-        <div className="detail-header">
-          <button 
-            onClick={() => setCurrentView('dashboard')}
-            className="back-button"
-          >
-            <ChevronLeft className="back-button-icon" />
-            Back to Dashboard
-          </button>
-          <h1 className="detail-title">Audit Logs</h1>
-        </div>
-        <div className="error-container">
-          <p>Error loading audit logs: {error}</p>
-          <button 
-            onClick={fetchAuditLogs}
-            className="retry-button"
-          >
-            Retry
-          </button>
         </div>
       </div>
     );
@@ -257,11 +232,31 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
           onClick={() => setCurrentView('dashboard')}
           className="back-button"
         >
-          <ChevronLeft className="back-button-icon" />
-          Back to Dashboard
+          <ChevronLeft className="back-icon" />
         </button>
-        <h1 className="detail-title">Audit Logs</h1>
+        <h1 className="detail-title">
+          <FileText className="inline mr-2" />
+          Audit Logs
+        </h1>
+        <button 
+          onClick={fetchAuditLogs}
+          className="refresh-button-icon"
+        >
+          Refresh
+        </button>
       </div>
+
+      {error && (
+        <div className="error-message mb-4">
+          {error}
+          <button 
+            onClick={fetchAuditLogs}
+            className="ml-4 text-sm underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="list-container">
         {/* Search Bar - Full Width */}
@@ -277,6 +272,7 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
                 onChange={handleSearchChange}
                 onFocus={() => searchTerm.length > 2 && setShowAutocomplete(true)}
                 onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
+                disabled={loading}
               />
             </div>
             {showAutocomplete && autocompleteSuggestions.length > 0 && (
@@ -287,7 +283,7 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
                     className="autocomplete-item"
                     onClick={() => selectAutocomplete(log)}
                   >
-                    {log.item_name || log.itemName || log.details?.itemName || 'N/A'} - {log.user_name || log.user || log.userName || 'Unknown'}
+                    {log.item_name || log.itemName || log.details?.itemName} - {log.user_name || log.user || log.userName}
                   </div>
                 ))}
               </div>
@@ -304,10 +300,13 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
               setActionFilter(e.target.value);
               setCurrentPage(1);
             }}
+            disabled={loading || !auditLogs}
           >
             <option value="all">All Actions</option>
             {uniqueActions.map(action => (
-              <option key={action} value={action}>{action}</option>
+              <option key={action} value={action}>
+                {action}
+              </option>
             ))}
           </select>
           
@@ -318,10 +317,13 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
               setUserFilter(e.target.value);
               setCurrentPage(1);
             }}
+            disabled={loading || !auditLogs}
           >
             <option value="all">All Users</option>
             {uniqueUsers.map(user => (
-              <option key={user} value={user}>{user}</option>
+              <option key={user} value={user}>
+                {user}
+              </option>
             ))}
           </select>
           
@@ -331,6 +333,7 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
               setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
               setCurrentPage(1);
             }}
+            disabled={loading || !auditLogs}
           >
             {sortDirection === 'asc' ? (
               <>
@@ -346,21 +349,22 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
           </button>
           
           <div className="import-export-buttons">
-            <label htmlFor="import-logs" className="import-button">
+            <label htmlFor="import-audit-logs" className={`import-button ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <Upload className="import-export-icon" />
               <span>Import</span>
               <input
-                id="import-logs"
+                id="import-audit-logs"
                 type="file"
-                accept=".csv,.json"
+                accept=".csv"
                 onChange={handleImport}
                 style={{ display: 'none' }}
+                disabled={loading}
               />
             </label>
             <button 
               className="export-button" 
               onClick={handleExport}
-              disabled={!auditLogs || auditLogs.length === 0}
+              disabled={loading || !auditLogs || auditLogs.length === 0}
             >
               <Download className="import-export-icon" />
               <span>Export</span>
@@ -368,52 +372,58 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
           </div>
         </div>
 
-        {/* Audit Logs List */}
-        <div className="audit-logs-list">
-          {currentItems.map(log => (
-            <div key={log.id} className="audit-log-card">
-              <div className="audit-log-header">
-                <div className="audit-log-type">
-                  {getActionIcon(log.type || log.itemType)}
-                  <span className="audit-log-item-name">
-                    {log.item_name || log.itemName || log.details?.itemName || 'N/A'}
-                  </span>
-                </div>
-                <div className="audit-log-timestamp">
-                  <Clock size={14} className="mr-1" />
-                  {formatDate(log.timestamp)}
-                </div>
-              </div>
-              
-              <div className="audit-log-details">
-                <div className="audit-log-action-user">
-                  <span className={`audit-log-action ${getActionColor(log.action)}`}>
-                    {log.action?.toUpperCase()}
-                  </span>
-                  <span className="audit-log-separator">•</span>
-                  <span className="audit-log-user">
-                    <User size={14} className="mr-1" />
-                    {log.user_name || log.user || log.userName || 'Unknown'}
-                  </span>
-                </div>
-                
-                {log.details && Object.keys(log.details).length > 0 && (
-                  <div className="audit-log-extra-details">
-                    {Object.entries(log.details).map(([key, value]) => (
-                      <span key={key} className="audit-log-detail-item">
-                        {key}: {String(value)}
+        <div className="audit-log-container">
+          {currentItems.length > 0 ? (
+            <div className="space-y-2">
+              {currentItems.map(log => (
+                <div key={log.id} className="audit-log-item">
+                  <div className="audit-log-header">
+                    <div className="flex items-center">
+                      {getActionIcon(log.type || 'general')}
+                      <span className={`audit-log-action ${getActionColor(log.action)}`}>
+                        {log.action} {log.type}
                       </span>
-                    ))}
+                      <span className="ml-3 font-medium"> {log.item_name || log.itemName || log.details?.itemName}</span>
+                    </div>
+                    <div className="audit-log-timestamp">
+                      <Clock size={14} className="inline mr-1" />
+                      {formatDate(log.timestamp || log.created_at || log.createdAt)}
+                    </div>
                   </div>
-                )}
-              </div>
+                  <div className="audit-log-details">
+                    <User size={14} className="inline mr-1" />
+                    {log.user_name || log.user || log.userName}
+                    {log.details && (
+                      <>
+                        {log.details.model && ` • Model: ${log.details.model}`}
+                        {log.details.serial_id && ` • Serial: ${log.details.serial_id}`}
+                        {log.details.serialId && ` • Serial: ${log.details.serialId}`}
+                        {log.details.batchNumber && ` • Serial: ${log.details.batchNumber}`}
+                        {log.details.location && ` • Location: ${log.details.location}`}
+                        {log.details.quantity && ` • Quantity: ${log.details.quantity}`}
+                        {log.details.status && ` • Status: ${log.details.status}`}
+                        {log.details.condition && ` • Condition: ${log.details.condition}`}
+                        {/* Add fallback for any other details */}
+                        {Object.keys(log.details).length > 0 && 
+                        !log.details.model && 
+                        !log.details.serial_id && 
+                        !log.details.serialId && 
+                        !log.details.batchNumber && 
+                        !log.details.location && 
+                        !log.details.quantity && 
+                        !log.details.status && 
+                        !log.details.condition && 
+                        ` • Details: ${JSON.stringify(log.details)}`}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-          
-          {currentItems.length === 0 && (
-            <div className="no-data">
-              {auditLogs?.length === 0 ? 'No audit logs found' : 'No logs match your search criteria'}
-            </div>
+          ) : (
+            <p className="no-data">
+              {auditLogs && auditLogs.length === 0 ? 'No audit logs available' : 'No logs match your search'}
+            </p>
           )}
         </div>
 

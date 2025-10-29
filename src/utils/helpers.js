@@ -280,3 +280,37 @@ export const sortChemicalsByUrgency = (chemicals) => {
     return expA - expB;
   });
 };
+
+
+// Get available sort options for audit logs
+export const getAuditLogSortOptions = () => [
+  { value: 'timestamp', label: 'Timestamp' },
+  { value: 'action', label: 'Action' },
+  { value: 'user_name', label: 'User' },
+  { value: 'item_name', label: 'Item Name' }
+];
+
+// Filter audit logs by search term and filters
+export const filterAuditLogs = (logs, searchTerm, actionFilter, userFilter, sortBy = 'timestamp', sortOrder = 'desc') => {
+  if (!logs) return [];
+  
+  let filtered = logs.filter(log => {
+    const matchesSearch = searchTerm === '' || 
+      (log.item_name || log.itemName || log.details?.itemName || '')
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (log.user_name || log.user || log.userName || '')
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (log.action || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesAction = actionFilter === 'all' || log.action === actionFilter;
+    const matchesUser = userFilter === 'all' || 
+      (log.user_name || log.user || log.userName) === userFilter;
+
+    return matchesSearch && matchesAction && matchesUser;
+  });
+
+  // Apply sorting
+  return sortItems(filtered, sortBy, sortOrder);
+};

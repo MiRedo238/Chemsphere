@@ -1,6 +1,6 @@
 // src/components/ChemicalsList.jsx
 import React, { useState, useContext } from 'react';
-import { Search, Plus, Download, Upload, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Plus, Download, Upload, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { safetyColors, ghsSymbols } from '../utils/data';
 import { filterChemicals, sortItems, exportToCSV, normalizeGhsSymbols, getChemicalSortOptions } from '../utils/helpers';
 import { importChemicals } from '../services/api';
@@ -18,6 +18,8 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const isAdmin = userRole === 'admin';
 
@@ -53,10 +55,18 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
   // Combine: out-of-stock first, then in-stock
   const finalSortedChemicals = [...sortedOutOfStock, ...inStockChemicals];
 
+  // Pagination calculations
+  const totalItems = finalSortedChemicals.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = finalSortedChemicals.slice(startIndex, endIndex);
+
   // Handle search with autocomplete (only on non-expired chemicals)
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
+    setCurrentPage(1); // Reset to first page when searching
     
     if (value.length > 2) {
       const suggestions = nonExpiredChemicals.filter(chem => 
@@ -76,6 +86,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
     setSearchTerm(chemical.name);
     setAutocompleteSuggestions([]);
     setShowAutocomplete(false);
+    setCurrentPage(1);
   };
 
   // Handle export (only non-expired chemicals)
@@ -144,6 +155,87 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
       setSelectedItem({...chemical, type: 'chemical'});
       setCurrentView('detail');
     }
+  };
+
+  // Pagination handlers
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(parseInt(e.target.value));
+    setCurrentPage(1);
+  };
+
+  // Render pagination controls
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const pageNumbers = [];
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
+    return (
+      <div className="pagination-container">
+        <div className="pagination-info">
+          Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} items
+        </div>
+        
+        <div className="pagination-controls">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="pagination-button"
+          >
+            <ChevronLeft size={16} />
+            Previous
+          </button>
+
+          <div className="pagination-numbers">
+            {pageNumbers.map(page => (
+              <button
+                key={page}
+                onClick={() => handlePageChange(page)}
+                className={`pagination-number ${currentPage === page ? 'active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="pagination-button"
+          >
+            Next
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        <div className="pagination-size">
+          <select
+            value={itemsPerPage}
+            onChange={handleItemsPerPageChange}
+            className="pagination-select"
+          >
+            <option value={10}>10 per page</option>
+            <option value={20}>20 per page</option>
+            <option value={50}>50 per page</option>
+          </select>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -227,7 +319,10 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
           <select 
             className="filter-select"
             value={filterClass}
-            onChange={(e) => setFilterClass(e.target.value)}
+            onChange={(e) => {
+              setFilterClass(e.target.value);
+              setCurrentPage(1);
+            }}
             disabled={loading}
           >
             <option value="all">All Classes</option>
@@ -241,7 +336,10 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
           <select 
             className="filter-select"
             value={sortField}
-            onChange={(e) => setSortField(e.target.value)}
+            onChange={(e) => {
+              setSortField(e.target.value);
+              setCurrentPage(1);
+            }}
             disabled={loading}
           >
             {getChemicalSortOptions().map(option => (
@@ -253,7 +351,10 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
           
           <button 
             className="sort-direction-button"
-            onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+            onClick={() => {
+              setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+              setCurrentPage(1);
+            }}
             disabled={loading}
           >
             {sortDirection === 'asc' ? (
@@ -295,7 +396,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
 
         {/* Chemicals List */}
         <div className="chemicals-list">
-          {finalSortedChemicals.map(chemical => {
+          {currentItems.map(chemical => {
             const isOutOfStock = chemical.current_quantity === 0;
             
             return (
@@ -350,12 +451,15 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
             );
           })}
           
-          {finalSortedChemicals.length === 0 && (
+          {currentItems.length === 0 && (
             <p className="no-data">
               {nonExpiredChemicals.length === 0 ? 'No active chemicals in inventory' : 'No chemicals match your search'}
             </p>
           )}
         </div>
+
+        {/* Pagination */}
+        {renderPagination()}
       </div>
     </>
   );

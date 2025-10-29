@@ -1,6 +1,6 @@
 // src/components/AuditLogs.jsx
 import React, { useContext, useEffect, useState } from 'react';
-import { ChevronLeft, FileText, User, Clock, FlaskConical, Microscope, Search, Download, Upload, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronLeft, FileText, User, Clock, FlaskConical, Microscope, Search, Download, Upload, ArrowUp, ArrowDown, ChevronRight } from 'lucide-react';
 import { formatDate, exportToCSV, sortItems } from '../utils/helpers';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
@@ -12,6 +12,8 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
   const [sortDirection, setSortDirection] = useState('desc'); // Default to newest first
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Fetch audit logs when component mounts
   useEffect(() => {
@@ -45,10 +47,18 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
   // Sort by timestamp (newest first by default)
   const sortedLogs = sortItems(filteredLogs, 'timestamp', sortDirection);
 
+  // Pagination calculations
+  const totalItems = sortedLogs.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = sortedLogs.slice(startIndex, endIndex);
+
   // Handle search with autocomplete
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
+    setCurrentPage(1); // Reset to first page when searching
     
     if (value.length > 2 && auditLogs) {
       const suggestions = auditLogs.filter(log => 
@@ -70,6 +80,7 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
     setSearchTerm(log.item_name || log.itemName || log.details?.itemName || '');
     setAutocompleteSuggestions([]);
     setShowAutocomplete(false);
+    setCurrentPage(1);
   };
 
   // Handle export
@@ -87,6 +98,87 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
       console.log('Import file:', file);
       alert('Audit log import functionality would be implemented here');
     }
+  };
+
+  // Pagination handlers
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(parseInt(e.target.value));
+    setCurrentPage(1);
+  };
+
+  // Render pagination controls
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const pageNumbers = [];
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
+    return (
+      <div className="pagination-container">
+        <div className="pagination-info">
+          Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} items
+        </div>
+        
+        <div className="pagination-controls">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="pagination-button"
+          >
+            <ChevronLeft size={16} />
+            Previous
+          </button>
+
+          <div className="pagination-numbers">
+            {pageNumbers.map(page => (
+              <button
+                key={page}
+                onClick={() => handlePageChange(page)}
+                className={`pagination-number ${currentPage === page ? 'active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="pagination-button"
+          >
+            Next
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        <div className="pagination-size">
+          <select
+            value={itemsPerPage}
+            onChange={handleItemsPerPageChange}
+            className="pagination-select"
+          >
+            <option value={10}>10 per page</option>
+            <option value={20}>20 per page</option>
+            <option value={50}>50 per page</option>
+          </select>
+        </div>
+      </div>
+    );
   };
 
   const getActionIcon = (type) => {
@@ -119,15 +211,40 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
             onClick={() => setCurrentView('dashboard')}
             className="back-button"
           >
-            <ChevronLeft className="back-icon" />
+            <ChevronLeft className="back-button-icon" />
+            Back to Dashboard
           </button>
-          <h1 className="detail-title">
-            <FileText className="inline mr-2" />
-            Audit Logs
-          </h1>
+          <h1 className="detail-title">Audit Logs</h1>
         </div>
         <div className="loading-container">
+          <div className="loading-spinner"></div>
           <p>Loading audit logs...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <div className="detail-header">
+          <button 
+            onClick={() => setCurrentView('dashboard')}
+            className="back-button"
+          >
+            <ChevronLeft className="back-button-icon" />
+            Back to Dashboard
+          </button>
+          <h1 className="detail-title">Audit Logs</h1>
+        </div>
+        <div className="error-container">
+          <p>Error loading audit logs: {error}</p>
+          <button 
+            onClick={fetchAuditLogs}
+            className="retry-button"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -140,31 +257,11 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
           onClick={() => setCurrentView('dashboard')}
           className="back-button"
         >
-          <ChevronLeft className="back-icon" />
+          <ChevronLeft className="back-button-icon" />
+          Back to Dashboard
         </button>
-        <h1 className="detail-title">
-          <FileText className="inline mr-2" />
-          Audit Logs
-        </h1>
-        <button 
-          onClick={fetchAuditLogs}
-          className="refresh-button-icon"
-        >
-          Refresh
-        </button>
+        <h1 className="detail-title">Audit Logs</h1>
       </div>
-
-      {error && (
-        <div className="error-message mb-4">
-          {error}
-          <button 
-            onClick={fetchAuditLogs}
-            className="ml-4 text-sm underline"
-          >
-            Retry
-          </button>
-        </div>
-      )}
 
       <div className="list-container">
         {/* Search Bar - Full Width */}
@@ -180,7 +277,6 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
                 onChange={handleSearchChange}
                 onFocus={() => searchTerm.length > 2 && setShowAutocomplete(true)}
                 onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
-                disabled={loading}
               />
             </div>
             {showAutocomplete && autocompleteSuggestions.length > 0 && (
@@ -191,7 +287,7 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
                     className="autocomplete-item"
                     onClick={() => selectAutocomplete(log)}
                   >
-                    {log.item_name || log.itemName || log.details?.itemName} - {log.user_name || log.user || log.userName}
+                    {log.item_name || log.itemName || log.details?.itemName || 'N/A'} - {log.user_name || log.user || log.userName || 'Unknown'}
                   </div>
                 ))}
               </div>
@@ -204,35 +300,37 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
           <select 
             className="filter-select"
             value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            disabled={loading || !auditLogs}
+            onChange={(e) => {
+              setActionFilter(e.target.value);
+              setCurrentPage(1);
+            }}
           >
             <option value="all">All Actions</option>
             {uniqueActions.map(action => (
-              <option key={action} value={action}>
-                {action}
-              </option>
+              <option key={action} value={action}>{action}</option>
             ))}
           </select>
           
           <select 
             className="filter-select"
             value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            disabled={loading || !auditLogs}
+            onChange={(e) => {
+              setUserFilter(e.target.value);
+              setCurrentPage(1);
+            }}
           >
             <option value="all">All Users</option>
             {uniqueUsers.map(user => (
-              <option key={user} value={user}>
-                {user}
-              </option>
+              <option key={user} value={user}>{user}</option>
             ))}
           </select>
           
           <button 
             className="sort-direction-button"
-            onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
-            disabled={loading || !auditLogs}
+            onClick={() => {
+              setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+              setCurrentPage(1);
+            }}
           >
             {sortDirection === 'asc' ? (
               <>
@@ -248,22 +346,21 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
           </button>
           
           <div className="import-export-buttons">
-            <label htmlFor="import-audit-logs" className={`import-button ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            <label htmlFor="import-logs" className="import-button">
               <Upload className="import-export-icon" />
               <span>Import</span>
               <input
-                id="import-audit-logs"
+                id="import-logs"
                 type="file"
-                accept=".csv"
+                accept=".csv,.json"
                 onChange={handleImport}
                 style={{ display: 'none' }}
-                disabled={loading}
               />
             </label>
             <button 
               className="export-button" 
               onClick={handleExport}
-              disabled={loading || !auditLogs || auditLogs.length === 0}
+              disabled={!auditLogs || auditLogs.length === 0}
             >
               <Download className="import-export-icon" />
               <span>Export</span>
@@ -271,60 +368,57 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
           </div>
         </div>
 
-        <div className="audit-log-container">
-          {sortedLogs.length > 0 ? (
-            <div className="space-y-2">
-              {sortedLogs.map(log => (
-                <div key={log.id} className="audit-log-item">
-                  <div className="audit-log-header">
-                    <div className="flex items-center">
-                      {getActionIcon(log.type || 'general')}
-                      <span className={`audit-log-action ${getActionColor(log.action)}`}>
-                        {log.action} {log.type}
-                      </span>
-                      <span className="ml-3 font-medium"> {log.item_name || log.itemName || log.details?.itemName}</span>
-                    </div>
-                    <div className="audit-log-timestamp">
-                      <Clock size={14} className="inline mr-1" />
-                      {formatDate(log.timestamp || log.created_at || log.createdAt)}
-                    </div>
-                  </div>
-                  <div className="audit-log-details">
-                    <User size={14} className="inline mr-1" />
-                    {log.user_name || log.user || log.userName}
-                    {log.details && (
-                      <>
-                        {log.details.model && ` • Model: ${log.details.model}`}
-                        {log.details.serial_id && ` • Serial: ${log.details.serial_id}`}
-                        {log.details.serialId && ` • Serial: ${log.details.serialId}`}
-                        {log.details.batchNumber && ` • Serial: ${log.details.batchNumber}`}
-                        {log.details.location && ` • Location: ${log.details.location}`}
-                        {log.details.quantity && ` • Quantity: ${log.details.quantity}`}
-                        {log.details.status && ` • Status: ${log.details.status}`}
-                        {log.details.condition && ` • Condition: ${log.details.condition}`}
-                        {/* Add fallback for any other details */}
-                        {Object.keys(log.details).length > 0 && 
-                        !log.details.model && 
-                        !log.details.serial_id && 
-                        !log.details.serialId && 
-                        !log.details.batchNumber && 
-                        !log.details.location && 
-                        !log.details.quantity && 
-                        !log.details.status && 
-                        !log.details.condition && 
-                        ` • Details: ${JSON.stringify(log.details)}`}
-                      </>
-                    )}
-                  </div>
+        {/* Audit Logs List */}
+        <div className="audit-logs-list">
+          {currentItems.map(log => (
+            <div key={log.id} className="audit-log-card">
+              <div className="audit-log-header">
+                <div className="audit-log-type">
+                  {getActionIcon(log.type || log.itemType)}
+                  <span className="audit-log-item-name">
+                    {log.item_name || log.itemName || log.details?.itemName || 'N/A'}
+                  </span>
                 </div>
-              ))}
+                <div className="audit-log-timestamp">
+                  <Clock size={14} className="mr-1" />
+                  {formatDate(log.timestamp)}
+                </div>
+              </div>
+              
+              <div className="audit-log-details">
+                <div className="audit-log-action-user">
+                  <span className={`audit-log-action ${getActionColor(log.action)}`}>
+                    {log.action?.toUpperCase()}
+                  </span>
+                  <span className="audit-log-separator">•</span>
+                  <span className="audit-log-user">
+                    <User size={14} className="mr-1" />
+                    {log.user_name || log.user || log.userName || 'Unknown'}
+                  </span>
+                </div>
+                
+                {log.details && Object.keys(log.details).length > 0 && (
+                  <div className="audit-log-extra-details">
+                    {Object.entries(log.details).map(([key, value]) => (
+                      <span key={key} className="audit-log-detail-item">
+                        {key}: {String(value)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          ) : (
-            <p className="no-data">
-              {auditLogs && auditLogs.length === 0 ? 'No audit logs available' : 'No logs match your search'}
-            </p>
+          ))}
+          
+          {currentItems.length === 0 && (
+            <div className="no-data">
+              {auditLogs?.length === 0 ? 'No audit logs found' : 'No logs match your search criteria'}
+            </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {renderPagination()}
       </div>
     </div>
   );

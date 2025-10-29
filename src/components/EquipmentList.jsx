@@ -1,13 +1,12 @@
 // src/components/EquipmentList.jsx
 import React, { useState, useContext } from 'react';
-import { Search, Plus, Download, Upload, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Plus, Download, Upload, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { statusColors } from '../utils/data';
 import { filterEquipment, sortItems, exportToCSV, getEquipmentSortOptions } from '../utils/helpers';
 import AddEquipment from './AddEquipment';
 import Modal from './Modal';
 import { importEquipment } from '../services/api';
 import { DatabaseContext } from '../contexts/DatabaseContext';
-
 
 const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog }) => {
   const { equipment, setEquipment } = useContext(DatabaseContext);
@@ -20,6 +19,8 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const isAdmin = userRole === 'admin';
 
@@ -27,10 +28,18 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
   const filteredEquipment = filterEquipment(equipment, searchTerm, statusFilter, sortField, sortDirection);
   const sortedEquipment = sortItems(filteredEquipment, sortField, sortDirection);
 
+  // Pagination calculations
+  const totalItems = sortedEquipment.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = sortedEquipment.slice(startIndex, endIndex);
+
   // Handle search with autocomplete
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
+    setCurrentPage(1); // Reset to first page when searching
     
     if (value.length > 2) {
       const suggestions = equipment.filter(eq => 
@@ -50,6 +59,7 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
     setSearchTerm(item.name);
     setAutocompleteSuggestions([]);
     setShowAutocomplete(false);
+    setCurrentPage(1);
   };
 
   // Handle export
@@ -119,6 +129,87 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
       setSelectedItem({...eq, type: 'equipment'});
       setCurrentView('detail');
     }
+  };
+
+  // Pagination handlers
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(parseInt(e.target.value));
+    setCurrentPage(1);
+  };
+
+  // Render pagination controls
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const pageNumbers = [];
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
+    return (
+      <div className="pagination-container">
+        <div className="pagination-info">
+          Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} items
+        </div>
+        
+        <div className="pagination-controls">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="pagination-button"
+          >
+            <ChevronLeft size={16} />
+            Previous
+          </button>
+
+          <div className="pagination-numbers">
+            {pageNumbers.map(page => (
+              <button
+                key={page}
+                onClick={() => handlePageChange(page)}
+                className={`pagination-number ${currentPage === page ? 'active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="pagination-button"
+          >
+            Next
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        <div className="pagination-size">
+          <select
+            value={itemsPerPage}
+            onChange={handleItemsPerPageChange}
+            className="pagination-select"
+          >
+            <option value={10}>10 per page</option>
+            <option value={20}>20 per page</option>
+            <option value={50}>50 per page</option>
+          </select>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -198,7 +289,10 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
           <select 
             className="filter-select"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             disabled={loading}
           >
             <option value="all">All Status</option>
@@ -210,7 +304,10 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
           <select 
             className="filter-select"
             value={sortField}
-            onChange={(e) => setSortField(e.target.value)}
+            onChange={(e) => {
+              setSortField(e.target.value);
+              setCurrentPage(1);
+            }}
             disabled={loading}
           >
             {getEquipmentSortOptions().map(option => (
@@ -222,7 +319,10 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
           
           <button 
             className="sort-direction-button"
-            onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+            onClick={() => {
+              setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+              setCurrentPage(1);
+            }}
             disabled={loading}
           >
             {sortDirection === 'asc' ? (
@@ -263,7 +363,7 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
         </div>
 
         <div className="equipment-list">
-          {sortedEquipment.map(eq => (
+          {currentItems.map(eq => (
             <div 
               key={eq.id} 
               className="equipment-card"
@@ -281,10 +381,13 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
             </div>
           ))}
           
-          {sortedEquipment.length === 0 && (
+          {currentItems.length === 0 && (
             <p className="no-data">No equipment found</p>
           )}
         </div>
+
+        {/* Pagination */}
+        {renderPagination()}
       </div>
     </div>
   );

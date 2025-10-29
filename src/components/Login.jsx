@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { LogIn, Eye, EyeOff, Atom } from 'lucide-react';
+import { Eye, EyeOff, Atom } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
-  const { loginWithGoogle, loginWithCredentials, error, clearError, user } = useAuth();
-  const [showPassword, setShowPassword] = useState(false);
-  const [credentials, setCredentials] = useState({
-    email: '',
-    password: ''
-  });
+  const { loginWithGoogle, error, clearError, user } = useAuth();
   const [loginLoading, setLoginLoading] = useState(false);
-  const [activeLogin, setActiveLogin] = useState(null); // Track which login is in progress
   const navigate = useNavigate();
 
   // Redirect if user is already logged in
@@ -21,34 +15,8 @@ const Login = () => {
     }
   }, [user, navigate]);
 
-  const handleCredentialLogin = async (e) => {
-    e.preventDefault();
-    
-    if (!credentials.email || !credentials.password) {
-      return;
-    }
-
-    setLoginLoading(true);
-    setActiveLogin('credentials');
-    clearError();
-
-    try {
-      const result = await loginWithCredentials(credentials.email, credentials.password);
-      if (result?.success) {
-        console.log('✅ Login successful, navigating to dashboard...');
-        navigate('/dashboard', { replace: true });
-      }
-    } catch (err) {
-      console.error('Login failed:', err);
-    } finally {
-      setLoginLoading(false);
-      setActiveLogin(null);
-    }
-  };
-
   const handleGoogleLogin = async () => {
     setLoginLoading(true);
-    setActiveLogin('google');
     clearError();
     
     try {
@@ -60,16 +28,7 @@ const Login = () => {
       console.error('Google login failed:', err);
     } finally {
       setLoginLoading(false);
-      setActiveLogin(null);
     }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setCredentials(prev => ({
-      ...prev,
-      [name]: value
-    }));
   };
 
   // If user exists, show loading while redirecting
@@ -104,62 +63,10 @@ const Login = () => {
         {loginLoading ? (
           <div className="login-loading">
             <div className="spinner"></div>
-            <p>
-              {activeLogin === 'google' ? 'Signing in with Google...' : 'Signing in...'}
-            </p>
+            <p>Signing in with Google...</p>
           </div>
         ) : (
           <>
-            {/* Email & Password Login Section */}
-            <div className="login-section">
-              <form onSubmit={handleCredentialLogin} className="credentials-form">
-                <div className="input-group">
-                  <label htmlFor="email">Email Address</label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    value={credentials.email}
-                    onChange={handleInputChange}
-                    placeholder="Enter your email"
-                    className="login-input"
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label htmlFor="password">Password</label>
-                  <div className="password-input-container">
-                    <input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      value={credentials.password}
-                      onChange={handleInputChange}
-                      placeholder="Enter your password"
-                      className="login-input password-input"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="password-toggle"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loginLoading || !credentials.email || !credentials.password}
-                  className="login-button"
-                >
-                  <LogIn size={18} />
-                  Sign In with Email
-                </button>
-              </form>
-            </div>
             {/* Google Login Section */}
             <div className="login-section">
               <button
@@ -176,7 +83,6 @@ const Login = () => {
                 Sign in with Google
               </button>
             </div>
-
           </>
         )}
 

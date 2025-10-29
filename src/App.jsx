@@ -1,5 +1,5 @@
 // App.jsx
-import React, { useState, useEffect, useContext  } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Plus, Menu, X } from 'lucide-react';
@@ -25,7 +25,7 @@ function DashboardContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedItem, setSelectedItem] = useState(null);
-  const { user, loading, userRole } = useAuth();
+  const { user, userRole } = useAuth();
 
   // Use DatabaseContext for real data
   const { 
@@ -62,6 +62,7 @@ function DashboardContent() {
   }, [fetchChemicals, fetchEquipment]);
 
   const [previousView, setPreviousView] = useState('chemicals'); 
+  
   // When navigating to detail view
   const handleViewDetail = (item, fromSection) => {
     setPreviousView(fromSection); // Store which section we came from

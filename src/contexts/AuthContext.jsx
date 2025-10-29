@@ -218,51 +218,6 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // Login with email/password
-  const loginWithCredentials = async (email, password) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) throw error;
-
-      // Ensure user exists in database
-      await ensureUserInDatabase(data.user);
-
-      // Get user profile including verification status
-      const profile = await getUserProfile(data.user.id);
-
-      // Check if user is verified and active
-      if (!profile.verified || !profile.active) {
-        // Sign out the user if not verified or inactive
-        await supabase.auth.signOut();
-        throw new Error('Your account is pending verification or has been deactivated. Please contact an administrator.');
-      }
-
-      // Update last login timestamp
-      await userService.updateLastLogin(data.user.id);
-
-      setUser(data.user);
-      setUserRole(profile.role);
-      setUserVerified(profile.verified);
-      setUserActive(profile.active);
-      
-      console.log('✅ Login successful:', data.user.email);
-      return { success: true, user: data.user };
-    } catch (err) {
-      console.error('❌ Login error:', err);
-      setError(err.message);
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const logout = async () => {
     try {
       setLoading(true);
@@ -328,7 +283,6 @@ export const AuthProvider = ({ children }) => {
       userActive,
       loading,
       error,
-      loginWithCredentials,
       loginWithGoogle,
       logout,
       clearError,

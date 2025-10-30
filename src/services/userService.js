@@ -239,12 +239,11 @@ export const userService = {
     }
   },
 
-  // UPDATED: Complete user deletion using Edge Function
+  // UPDATED: Enhanced user deletion with better CORS error handling
   async deleteUserCompletely(id) {
     try {
       console.log('🗑️ Starting complete user deletion for:', id);
       
-      // Get Supabase URL and anon key from the existing client or environment
       const supabaseUrl = supabase.supabaseUrl;
       const supabaseAnonKey = supabase.supabaseKey;
       
@@ -262,8 +261,21 @@ export const userService = {
         body: JSON.stringify({ userId: id })
       });
 
+      // Enhanced error handling for CORS and network issues
       if (!response.ok) {
-        const errorData = await response.json();
+        // Check for CORS/network errors (status 0 or opaque response)
+        if (response.status === 0 || response.type === 'opaque') {
+          console.warn('🌐 CORS/Network error detected, using fallback deletion');
+          throw new Error('CORS/Network error - using fallback deletion');
+        }
+        
+        // Handle other HTTP errors
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+        }
         throw new Error(errorData.error || `Failed to delete user: ${response.status}`);
       }
 
@@ -274,19 +286,37 @@ export const userService = {
     } catch (error) {
       console.error('❌ Complete user deletion failed:', error);
       
-      // Fallback: Try database-only deletion if Edge Function fails
+      // Enhanced fallback with better error handling
       console.log('🔄 Attempting database-only deletion as fallback...');
+      
+      // Determine user-friendly message based on error type
+      let userFriendlyMessage;
+      if (error.message.includes('CORS') || error.message.includes('Network')) {
+        userFriendlyMessage = 'Temporary system issue - user will be removed from application database. Auth cleanup may be required manually in Supabase dashboard.';
+      } else {
+        userFriendlyMessage = `User deletion partially completed. ${error.message}`;
+      }
+      
       try {
+        // Only delete from database as fallback
         await this.permanentDeleteUser(id);
         console.log('✅ User deleted from database (auth cleanup may be needed manually)');
+        
         return {
           success: true,
           requiresManualCleanup: true,
-          message: 'User removed from application. Manual auth cleanup required in Supabase dashboard.'
+          message: userFriendlyMessage
         };
       } catch (dbError) {
         console.error('❌ Database deletion also failed:', dbError);
-        throw new Error(`User deletion failed: ${error.message}. Fallback also failed: ${dbError.message}`);
+        
+        // Combine both errors for comprehensive reporting
+        const combinedError = new Error(
+          `User deletion failed: ${error.message}. Fallback also failed: ${dbError.message}`
+        );
+        combinedError.originalError = error;
+        combinedError.fallbackError = dbError;
+        throw combinedError;
       }
     }
   },

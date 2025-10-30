@@ -1,37 +1,36 @@
 // src/contexts/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase/supabaseClient';
+import { userService } from '../services/userService';
 
 const AuthContext = createContext();
 
-// Enhanced function to get user profile with better error handling
+// Simple function to get user role and verification status
 const getUserProfile = async (userId) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('role, verified, active, username, email')
+      .select('role, verified, active')
       .eq('id', userId)
       .maybeSingle();
     
     if (error) {
       console.warn('Error fetching user profile:', error);
-      return { role: 'user', verified: false, active: false, username: '', email: '' };
+      return { role: 'user', verified: false, active: false };
     }
     
     return {
       role: data?.role || 'user',
       verified: data?.verified || false,
-      active: data?.active || false,
-      username: data?.username || '',
-      email: data?.email || ''
+      active: data?.active || false
     };
   } catch (error) {
     console.error('Error in getUserProfile:', error);
-    return { role: 'user', verified: false, active: false, username: '', email: '' };
+    return { role: 'user', verified: false, active: false };
   }
 };
 
-// Enhanced function to ensure user exists in public.users table
+// Function to ensure user exists in public.users table
 const ensureUserInDatabase = async (user) => {
   try {
     console.log('🔄 Ensuring user exists in database:', user.email);
@@ -43,7 +42,7 @@ const ensureUserInDatabase = async (user) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found"
+    if (fetchError) {
       console.warn('Error checking existing user:', fetchError);
     }
 
@@ -62,9 +61,9 @@ const ensureUserInDatabase = async (user) => {
         id: user.id,
         username: username,
         email: user.email,
-        role: 'user',
+        role: 'user', // Always default to 'user' for new OAuth users
         active: true,
-        verified: false
+        verified: false // New users are unverified by default
       };
 
       const { data, error } = await supabase
@@ -74,7 +73,8 @@ const ensureUserInDatabase = async (user) => {
         .single();
       
       if (error) {
-        if (error.code === '23505') { // Unique violation
+        // If there's a conflict, user was probably created by trigger
+        if (error.code === '23505') {
           console.log('✅ User already exists in database (likely from trigger)');
           // Fetch the existing user
           const { data: existing } = await supabase
@@ -101,140 +101,128 @@ const ensureUserInDatabase = async (user) => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [userProfile, setUserProfile] = useState({
-    role: 'user',
-    verified: false,
-    active: false,
-    username: '',
-    email: ''
-  });
+  const [userRole, setUserRole] = useState('user');
+  const [userVerified, setUserVerified] = useState(false);
+  const [userActive, setUserActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [sessionChecked, setSessionChecked] = useState(false);
 
-  // Helper functions
-  const isLockedOut = useCallback(() => {
-    return user && (!userProfile.verified || !userProfile.active);
-  }, [user, userProfile.verified, userProfile.active]);
+  // Add helper function to check if user is locked out
+  const isLockedOut = () => {
+    return user && (!userVerified || !userActive);
+  };
 
-  const canAccess = useCallback(() => {
-    return user && userProfile.verified && userProfile.active;
-  }, [user, userProfile.verified, userProfile.active]);
+  // Helper function to check if user can access protected content
+  const canAccess = () => {
+    return user && userVerified && userActive;
+  };
 
-  const isAdmin = useCallback(() => {
-    return user && userProfile.role === 'admin' && userProfile.verified && userProfile.active;
-  }, [user, userProfile.role, userProfile.verified, userProfile.active]);
+  // Helper function to check if user is admin
+  const isAdmin = () => {
+    return user && userRole === 'admin' && userVerified && userActive;
+  };
 
-  // Enhanced session initialization
-  const initializeAuth = useCallback(async () => {
-    try {
-      console.log('🔄 Initializing auth session...');
-      setLoading(true);
-      
-      // Get current session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        setError(sessionError.message);
-        return;
-      }
-
-      console.log('📋 Session found:', session?.user?.email);
-
-      if (session?.user) {
-        console.log('👤 User authenticated, ensuring in database...');
-        
-        // Ensure user exists in public.users table
-        const dbUser = await ensureUserInDatabase(session.user);
-        
-        // Get user profile including verification status
-        const profile = await getUserProfile(session.user.id);
-        console.log('🎭 User profile:', profile);
-        
-        setUser(session.user);
-        setUserProfile(profile);
-        setError(null);
-      } else {
-        console.log('❌ No session found');
-        setUser(null);
-        setUserProfile({
-          role: 'user',
-          verified: false,
-          active: false,
-          username: '',
-          email: ''
-        });
-        setError(null);
-      }
-    } catch (error) {
-      console.error('Auth initialization error:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-      setSessionChecked(true);
-    }
-  }, []);
-
-  // Session persistence and auto-refresh
   useEffect(() => {
     let mounted = true;
 
-    const setupAuthListener = () => {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          console.log('🔄 Auth state changed:', event, session?.user?.email);
-          
-          if (!mounted) return;
-
-          try {
-            if (session?.user) {
-              console.log('👤 Auth change - user present, ensuring in database...');
-              
-              // Ensure user exists in public.users table
-              await ensureUserInDatabase(session.user);
-              
-              // Get user profile including verification status
-              const profile = await getUserProfile(session.user.id);
-              console.log('🎭 User profile:', profile);
-              
-              if (mounted) {
-                setUser(session.user);
-                setUserProfile(profile);
-                setError(null);
-              }
-            } else {
-              console.log('👤 Auth change - no user');
-              setUser(null);
-              setUserProfile({
-                role: 'user',
-                verified: false,
-                active: false,
-                username: '',
-                email: ''
-              });
-              setError(null);
-            }
-          } catch (error) {
-            console.error('Auth state change error:', error);
-            setError(error.message);
+    const initializeAuth = async () => {
+      try {
+        console.log('🔄 Initializing auth...');
+        
+        // Get current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          if (mounted) {
+            setError(sessionError.message);
+            setLoading(false);
           }
+          return;
         }
-      );
 
-      return subscription;
+        console.log('📋 Session found:', session?.user?.email);
+
+        if (session?.user && mounted) {
+          console.log('👤 User authenticated, ensuring in database...');
+          
+          // Ensure user exists in public.users table
+          await ensureUserInDatabase(session.user);
+          
+          // Get user profile including verification status
+          const profile = await getUserProfile(session.user.id);
+          console.log('🎭 User profile:', profile);
+          
+          if (mounted) {
+            setUser(session.user);
+            setUserRole(profile.role);
+            setUserVerified(profile.verified);
+            setUserActive(profile.active);
+          }
+        } else if (mounted) {
+          console.log('❌ No session found');
+          setUser(null);
+          setUserRole('user');
+          setUserVerified(false);
+          setUserActive(false);
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          console.log('✅ Auth initialization complete');
+        }
+      }
     };
 
-    // Initialize auth and set up listener
     initializeAuth();
-    const subscription = setupAuthListener();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔄 Auth state changed:', event, session?.user?.email);
+        
+        if (!mounted) return;
+
+        try {
+          if (session?.user) {
+            console.log('👤 Auth change - user present, ensuring in database...');
+            
+            // Ensure user exists in public.users table
+            await ensureUserInDatabase(session.user);
+            
+            // Get user profile including verification status
+            const profile = await getUserProfile(session.user.id);
+            console.log('🎭 User profile:', profile);
+            
+            if (mounted) {
+              setUser(session.user);
+              setUserRole(profile.role);
+              setUserVerified(profile.verified);
+              setUserActive(profile.active);
+              setError(null);
+            }
+          } else {
+            console.log('👤 Auth change - no user');
+            setUser(null);
+            setUserRole('user');
+            setUserVerified(false);
+            setUserActive(false);
+            setError(null);
+          }
+        } catch (error) {
+          console.error('Auth state change error:', error);
+          setError(error.message);
+        }
+      }
+    );
 
     // Safety timeout
     const safetyTimeout = setTimeout(() => {
       if (mounted && loading) {
         console.warn('⚠️ Auth loading timeout - forcing loading to false');
         setLoading(false);
-        setSessionChecked(true);
       }
     }, 10000);
 
@@ -243,32 +231,7 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
-  }, [initializeAuth]);
-
-  // Auto-refresh session before it expires
-  useEffect(() => {
-    if (!user) return;
-
-    const refreshSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Session refresh error:', error);
-          return;
-        }
-        
-        if (session) {
-          console.log('🔄 Session refreshed automatically');
-        }
-      } catch (error) {
-        console.error('Auto-refresh error:', error);
-      }
-    };
-
-    // Refresh session every 30 minutes
-    const refreshInterval = setInterval(refreshSession, 30 * 60 * 1000);
-    return () => clearInterval(refreshInterval);
-  }, [user]);
+  }, []);
 
   const logout = async () => {
     try {
@@ -277,13 +240,9 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
       
       setUser(null);
-      setUserProfile({
-        role: 'user',
-        verified: false,
-        active: false,
-        username: '',
-        email: ''
-      });
+      setUserRole('user');
+      setUserVerified(false);
+      setUserActive(false);
       setError(null);
       console.log('✅ Logout successful');
     } catch (err) {
@@ -302,11 +261,7 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent'
-          }
+          redirectTo: `${window.location.origin}/#/auth/callback`
         }
       });
       
@@ -323,46 +278,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const refreshUserProfile = async () => {
-    if (!user) return;
-    
-    try {
-      const profile = await getUserProfile(user.id);
-      setUserProfile(profile);
-      console.log('✅ User profile refreshed');
-    } catch (error) {
-      console.error('❌ Error refreshing user profile:', error);
-    }
-  };
-
   const clearError = () => setError(null);
 
-  const value = {
-    // State
-    user,
-    userRole: userProfile.role,
-    userVerified: userProfile.verified,
-    userActive: userProfile.active,
-    userProfile,
-    loading,
-    error,
-    sessionChecked,
-    
-    // Computed values
-    isLockedOut: isLockedOut(),
-    canAccess: canAccess(),
-    isAdmin: isAdmin(),
-    
-    // Methods
-    loginWithGoogle,
-    logout,
-    clearError,
-    refreshUserProfile,
-    initializeAuth
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ 
+      user,
+      userRole,
+      userVerified,
+      userActive,
+      loading,
+      error,
+      isLockedOut: isLockedOut(), // Add computed locked out status
+      loginWithGoogle,
+      logout,
+      clearError,
+      canAccess: canAccess(),
+      isAdmin: isAdmin()
+    }}>
       {children}
     </AuthContext.Provider>
   );

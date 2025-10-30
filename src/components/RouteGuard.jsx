@@ -1,99 +1,43 @@
 // src/components/RouteGuard.jsx
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
-const RouteGuard = ({ children, requireAdmin = false, requireVerified = true }) => {
-  const { 
-    user, 
-    userVerified, 
-    userActive, 
-    isAdmin, 
-    loading, 
-    isLockedOut,
-    sessionChecked 
-  } = useAuth();
+const RouteGuard = ({ children, requireAdmin = false }) => {
+  const { user, userVerified, userActive, isAdmin, loading, isLockedOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [accessChecked, setAccessChecked] = useState(false);
 
   useEffect(() => {
-    if (!loading && sessionChecked) {
-      console.log('🛡️ RouteGuard checking access:', {
-        user: user?.email,
-        userVerified,
-        userActive,
-        isLockedOut,
-        requireAdmin,
-        path: location.pathname
-      });
-
-      // Redirect to login if no user
-      if (!user) {
-        console.log('🛡️ No user, redirecting to login');
-        navigate('/login', { 
-          replace: true,
-          state: { from: location } 
-        });
-        return;
-      }
-
-      // Check if user is locked out (not verified or inactive)
-      if (requireVerified && isLockedOut) {
-        console.log('🛡️ User locked out, redirecting to verification pending');
-        navigate('/dashboard', { replace: true });
-        return;
-      }
-
-      // Check admin privileges if required
-      if (requireAdmin && !isAdmin) {
-        console.log('🛡️ Admin access required, redirecting to unauthorized');
+    if (!loading) {
+      // Check if user can access the system
+      const canAccessSystem = user && userVerified && userActive;
+      
+      if (!canAccessSystem || isLockedOut) {
         navigate('/unauthorized', { 
-          replace: true,
           state: { 
-            message: 'Admin privileges required to access this page.',
-            from: location
+            message: 'Your account is pending verification or has been deactivated.' 
           } 
         });
-        return;
+      } else if (requireAdmin && !isAdmin) {
+        navigate('/unauthorized', { 
+          state: { 
+            message: 'Admin privileges required to access this page.' 
+          } 
+        });
       }
-
-      // All checks passed
-      console.log('🛡️ Access granted');
-      setAccessChecked(true);
     }
-  }, [
-    user, 
-    userVerified, 
-    userActive, 
-    isAdmin, 
-    loading, 
-    isLockedOut, 
-    navigate, 
-    requireAdmin, 
-    location,
-    sessionChecked,
-    requireVerified
-  ]);
+  }, [user, userVerified, userActive, isAdmin, loading, navigate, requireAdmin, isLockedOut]);
 
-  // Show loading while checking authentication
-  if (loading || !sessionChecked) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2">Checking authentication...</span>
-      </div>
-    );
+  if (loading) {
+    return <div className="flex justify-center items-center h-full">Loading...</div>;
   }
 
-  // Show loading while checking access
-  if (!accessChecked) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2">Verifying access...</span>
-      </div>
-    );
+  // Check access conditions
+  const canAccessSystem = user && userVerified && userActive && !isLockedOut;
+  const hasRequiredRole = !requireAdmin || isAdmin;
+
+  if (!canAccessSystem || !hasRequiredRole) {
+    return null;
   }
 
   return children;

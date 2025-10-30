@@ -1,6 +1,6 @@
 // App.jsx
-import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useContext } from 'react';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Plus, Menu, X } from 'lucide-react';
 import Login from './components/Login';
@@ -20,40 +20,13 @@ import RouteGuard from './components/RouteGuard';
 import Unauthorized from './pages/Unauthorized';
 import VerificationPending from './components/VerificationPending';
 
-// Session monitoring component
-function SessionMonitor() {
-  const { user, refreshUserProfile } = useAuth();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (!user) return;
-
-    // Refresh user profile when navigating to different routes
-    refreshUserProfile();
-  }, [location.pathname, user, refreshUserProfile]);
-
-  // Auto-refresh session periodically
-  useEffect(() => {
-    if (!user) return;
-
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refreshing user session...');
-      refreshUserProfile();
-    }, 15 * 60 * 1000); // Refresh every 15 minutes
-
-    return () => clearInterval(interval);
-  }, [user, refreshUserProfile]);
-
-  return null;
-}
-
 // Main Dashboard Component (Protected)
 function DashboardContent() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedItem, setSelectedItem] = useState(null);
-  const { user, userRole, refreshUserProfile } = useAuth();
+  const { user, userRole } = useAuth();
 
   // Use DatabaseContext for real data
   const { 
@@ -84,17 +57,10 @@ function DashboardContent() {
     }
   }, [activeSection]);
 
-  useEffect(() => {
+   useEffect(() => {
     if (fetchChemicals) fetchChemicals();
     if (fetchEquipment) fetchEquipment();
   }, [fetchChemicals, fetchEquipment]);
-
-  // Refresh user profile when dashboard loads
-  useEffect(() => {
-    if (user) {
-      refreshUserProfile();
-    }
-  }, [user, refreshUserProfile]);
 
   const [previousView, setPreviousView] = useState('chemicals'); 
   
@@ -125,11 +91,8 @@ function DashboardContent() {
   };
 
   const refreshData = async () => {
+    // TODO: Implement data refresh
     console.log('Refreshing data...');
-    // Refresh both data and user session
-    if (fetchChemicals) await fetchChemicals();
-    if (fetchEquipment) await fetchEquipment();
-    await refreshUserProfile();
   };
 
   const handleSetCurrentView = (view) => {
@@ -214,7 +177,7 @@ function DashboardContent() {
             setCurrentView={handleSetCurrentView}
             addAuditLog={addAuditLog}
             userRole={userRole}
-            currentUser={{ name: user?.email || 'Current User' }}
+            currentUser={{ name: 'Current User' }}
             refreshData={refreshData}
           />
         );
@@ -280,12 +243,6 @@ function DashboardContent() {
       {/* Main Content */}
       <main className="main-content">
         <header className="top-bar">
-          {/* Session status indicator */}
-          <div className="session-status">
-            <span className="status-dot"></span>
-            <span className="status-text">Session Active</span>
-          </div>
-          
           {currentView === 'dashboard' && (
             <>
               <button className="add-btn" onClick={() => handleSetCurrentView('log-usage')}>
@@ -314,161 +271,85 @@ function LoadingScreen() {
   );
 }
 
-// Enhanced routing configuration
-const AppRoutes = () => {
-  const { user, loading, isLockedOut, sessionChecked } = useAuth();
+// Main App Component with Routing
+function App() {
+  const { user, loading, isLockedOut } = useAuth();
 
-  console.log('🔍 AppRoutes - Auth State:', { 
+  console.log('🔍 App.jsx - Auth State:', { 
     loading, 
-    sessionChecked,
     user: user ? user.email : 'null',
     isLockedOut
   });
 
   // Show loading screen while checking authentication
-  if (loading || !sessionChecked) {
-    console.log('🔍 AppRoutes - Showing loading screen');
+  if (loading) {
+    console.log('🔍 App.jsx - Showing loading screen');
     return <LoadingScreen />;
   }
 
-  return (
-    <Routes>
-      {/* Public route - redirect to dashboard if already authenticated and verified */}
-      <Route 
-        path="/login" 
-        element={
-          user ? (
-            isLockedOut ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
-          ) : (
-            <Login />
-          )
-        } 
-      />
-      
-      {/* Verification pending route */}
-      <Route 
-        path="/verification-pending" 
-        element={
-          user && isLockedOut ? (
-            <VerificationPending />
-          ) : (
-            <Navigate to="/dashboard" replace />
-          )
-        } 
-      />
-
-      {/* Protected dashboard routes */}
-      <Route 
-        path="/dashboard/*" 
-        element={
-          <RouteGuard requireVerified={false}>
-            {isLockedOut ? <VerificationPending /> : <DashboardContent />}
-          </RouteGuard>
-        } 
-      />
-
-      {/* Admin routes */}
-      <Route 
-        path="/admin/*" 
-        element={
-          <RouteGuard requireAdmin={true}>
-            <UserManagement />
-          </RouteGuard>
-        } 
-      />
-
-      {/* Unauthorized route */}
-      <Route path="/unauthorized" element={<Unauthorized />} />
-
-      {/* Default route */}
-      <Route 
-        path="/" 
-        element={
-          <Navigate to={
-            user ? (
-              isLockedOut ? "/dashboard" : "/dashboard"
-            ) : (
-              "/login"
-            )
-          } replace />
-        } 
-      />
-      
-      {/* Catch all route */}
-      <Route 
-        path="*" 
-        element={
-          <Navigate to={
-            user ? (
-              isLockedOut ? "/dashboard" : "/dashboard"
-            ) : (
-              "/login"
-            )
-          } replace />
-        } 
-      />
-    </Routes>
-  );
-};
-
-// Main App Component with Enhanced Session Management
-function App() {
-  const { initializeAuth } = useAuth();
-
-  // Initialize auth on app start
-  useEffect(() => {
-    console.log('🚀 App starting - initializing auth...');
-    initializeAuth();
-  }, [initializeAuth]);
-
-  // Handle page visibility changes (tab switching)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('📱 App became visible - refreshing session...');
-        initializeAuth();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [initializeAuth]);
-
-  // Handle online/offline status
-  useEffect(() => {
-    const handleOnline = () => {
-      console.log('🌐 App came online - refreshing session...');
-      initializeAuth();
-    };
-
-    window.addEventListener('online', handleOnline);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-    };
-  }, [initializeAuth]);
+  console.log('🔍 App.jsx - Loading complete, rendering app');
 
   return (
     <DatabaseProvider>
       <Router>
         <div className="app">
           <ErrorBoundary>
-            {/* Session monitor for auto-refresh */}
-            <SessionMonitor />
+            <Routes>
+            {/* Public route - redirect to dashboard if already authenticated and verified */}
+            <Route 
+              path="/login" 
+              element={
+                user && !isLockedOut ? <Navigate to="/dashboard" replace /> : <Login />
+              } 
+            />
             
-            {/* Main app routes */}
-            <AppRoutes />
+            {/* Protected routes - redirect to appropriate screens */}
+            <Route 
+              path="/dashboard" 
+              element={
+                user ? (
+                  isLockedOut ? <VerificationPending /> : <DashboardContent />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              } 
+            />
+            
+            {/* Default route */}
+            <Route 
+              path="/" 
+              element={
+                <Navigate to={user ? (isLockedOut ? "/dashboard" : "/dashboard") : "/login"} replace />
+              } 
+            />
+            
+            {/* Catch all route */}
+            <Route 
+              path="*" 
+              element={
+                <Navigate to={user ? (isLockedOut ? "/dashboard" : "/dashboard") : "/login"} replace />
+              } 
+            />
+
+            <Route path="/admin" element={
+              <RouteGuard requireAdmin={true}>
+                <UserManagement />
+              </RouteGuard>
+            } />
+
+            <Route path="/dashboard" element={
+              <RouteGuard>
+                <Dashboard />
+              </RouteGuard>
+            } />
+
+            <Route path="/unauthorized" element={<Unauthorized />} />
+          </Routes>
           </ErrorBoundary>
         </div>
       </Router>
     </DatabaseProvider>
+    
   );
 }
 

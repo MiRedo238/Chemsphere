@@ -1,65 +1,9 @@
-// lib/supabase/supabaseClient.js
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL 
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Cookie storage implementation
-const cookieStorage = {
-  getItem: (key) => {
-    if (typeof document === 'undefined') return null;
-    const cookie = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${key}=`))
-    return cookie ? decodeURIComponent(cookie.split('=')[1]) : null
-  },
-  setItem: (key, value) => {
-    if (typeof document === 'undefined') return;
-    const expires = new Date(Date.now() + 60 * 60 * 24 * 7 * 1000).toUTCString(); // 7 days
-    document.cookie = `${key}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax; Secure`
-  },
-  removeItem: (key) => {
-    if (typeof document === 'undefined') return;
-    document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
-  }
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    // Enable cookie persistence
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    // Use cookies instead of localStorage
-    storage: cookieStorage,
-    // Cookie configuration
-    cookieOptions: {
-      name: 'sb-auth-token',
-      lifetime: 60 * 60 * 24 * 7, // 7 days
-      domain: '',
-      path: '/',
-      sameSite: 'lax',
-      secure: true
-    }
-  }
-})
-
-// Enhanced session check with cookie support
-export const checkAuthSession = async () => {
-  try {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error) {
-      console.error('Session check error:', error);
-      return null;
-    }
-    
-    return session;
-  } catch (error) {
-    console.error('Auth session check failed:', error);
-    return null;
-  }
-};
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Helper functions for common queries
 export const getCurrentUser = async () => {
@@ -68,6 +12,7 @@ export const getCurrentUser = async () => {
   return user
 }
 
+// In your supabaseClient.js
 export const getUserRole = async () => {
   try {
     const { data, error } = await supabase

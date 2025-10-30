@@ -283,11 +283,11 @@ function App() {
 
   // Show loading screen while checking authentication
   if (loading) {
-    console.log('🔍 App.jsx - Checking cookie session...');
+    console.log('🔍 App.jsx - Showing loading screen');
     return <LoadingScreen />;
   }
 
-  console.log('🔍 App.jsx - Session check complete, rendering app');
+  console.log('🔍 App.jsx - Loading complete, rendering app');
 
   return (
     <DatabaseProvider>
@@ -295,55 +295,61 @@ function App() {
         <div className="app">
           <ErrorBoundary>
             <Routes>
-              {/* Public route - redirect to dashboard if already authenticated */}
-              <Route 
-                path="/login" 
-                element={
-                  user && !isLockedOut ? <Navigate to="/dashboard" replace /> : <Login />
-                } 
-              />
-              
-              {/* Protected routes */}
-              <Route 
-                path="/dashboard/*" 
-                element={
-                  user ? (
-                    isLockedOut ? <VerificationPending /> : <DashboardContent />
-                  ) : (
-                    <Navigate to="/login" replace />
-                  )
-                } 
-              />
-              
-              {/* Default route */}
-              <Route 
-                path="/" 
-                element={
-                  <Navigate to={user ? "/dashboard" : "/login"} replace />
-                } 
-              />
-              
-              {/* Catch all route */}
-              <Route 
-                path="*" 
-                element={
-                  <Navigate to={user ? "/dashboard" : "/login"} replace />
-                } 
-              />
+            {/* Public route - redirect to dashboard if already authenticated and verified */}
+            <Route 
+              path="/login" 
+              element={
+                user && !isLockedOut ? <Navigate to="/dashboard" replace /> : <Login />
+              } 
+            />
+            
+            {/* Protected routes - redirect to appropriate screens */}
+            <Route 
+              path="/dashboard" 
+              element={
+                user ? (
+                  isLockedOut ? <VerificationPending /> : <DashboardContent />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              } 
+            />
+            
+            {/* Default route */}
+            <Route 
+              path="/" 
+              element={
+                <Navigate to={user ? (isLockedOut ? "/dashboard" : "/dashboard") : "/login"} replace />
+              } 
+            />
+            
+            {/* Catch all route */}
+            <Route 
+              path="*" 
+              element={
+                <Navigate to={user ? (isLockedOut ? "/dashboard" : "/dashboard") : "/login"} replace />
+              } 
+            />
 
-              {/* Admin routes */}
-              <Route path="/admin" element={
-                <RouteGuard requireAdmin={true}>
-                  <UserManagement />
-                </RouteGuard>
-              } />
+            <Route path="/admin" element={
+              <RouteGuard requireAdmin={true}>
+                <UserManagement />
+              </RouteGuard>
+            } />
 
-              <Route path="/unauthorized" element={<Unauthorized />} />
-            </Routes>
+            <Route path="/dashboard" element={
+              <RouteGuard>
+                <Dashboard />
+              </RouteGuard>
+            } />
+
+            <Route path="/unauthorized" element={<Unauthorized />} />
+          </Routes>
           </ErrorBoundary>
         </div>
       </Router>
     </DatabaseProvider>
+    
   );
 }
 

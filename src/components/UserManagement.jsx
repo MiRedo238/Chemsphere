@@ -132,8 +132,8 @@ const UserManagement = () => {
       setActionLoading(`delete-${userToDelete.id}`);
       setError('');
 
-      // Mark user for deletion
-      await userService.deleteUser(userToDelete.id);
+      // Use permanent deletion instead of soft delete
+      await userService.permanentDeleteUser(userToDelete.id);
 
       // Update local state
       setUsers(prev => prev.filter(user => user.id !== userToDelete.id));
@@ -147,7 +147,7 @@ const UserManagement = () => {
       setDeleteModalOpen(false);
       setUserToDelete(null);
       
-      alert(`User ${userToDelete.username} has been marked for deletion and deactivated.`);
+      alert(`User ${userToDelete.username} has been permanently deleted.`);
     } catch (err) {
       setError('Failed to delete user: ' + err.message);
       console.error('Delete user error:', err);

@@ -63,37 +63,37 @@ export const userService = {
   },
 
   // In userService.js - fix the update method
-    async verifyUserDirect(id) {
-      try {
-        console.log('Direct verify user:', id);
-        
-        const { error } = await supabase
-          .from('users')
-          .update({ 
-            verified: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id);
-
-        if (error) {
-          console.error('Direct verify update error:', error);
-          throw error;
-        }
-
-        console.log('Verification update successful');
-        
-        // Return success object
-        return { 
-          id: id, 
+  async verifyUserDirect(id) {
+    try {
+      console.log('Direct verify user:', id);
+      
+      const { error } = await supabase
+        .from('users')
+        .update({ 
           verified: true,
-          success: true 
-        };
-        
-      } catch (error) {
-        console.error('Error in direct verify:', error);
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Direct verify update error:', error);
         throw error;
       }
-    },
+
+      console.log('Verification update successful');
+      
+      // Return success object
+      return { 
+        id: id, 
+        verified: true,
+        success: true 
+      };
+      
+    } catch (error) {
+      console.error('Error in direct verify:', error);
+      throw error;
+    }
+  },
 
   // ===== USER STATUS MANAGEMENT =====
   async updateRole(id, role) {
@@ -160,7 +160,7 @@ export const userService = {
     }
   },
 
- async update(id, updates) {
+  async update(id, updates) {
     try {
       // Debug: Check current user and their role
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -239,39 +239,55 @@ export const userService = {
     }
   },
 
-  // NEW: Complete user deletion from both Auth and Database
+  // UPDATED: Complete user deletion using Edge Function
   async deleteUserCompletely(id) {
     try {
       console.log('🗑️ Starting complete user deletion for:', id);
       
-      // 1. First delete from Supabase Auth
-      const { error: authError } = await supabase.auth.admin.deleteUser(id);
+      // Get Supabase URL and anon key from the existing client or environment
+      const supabaseUrl = supabase.supabaseUrl;
+      const supabaseAnonKey = supabase.supabaseKey;
       
-      if (authError) {
-        console.error('❌ Auth deletion error:', authError);
-        // Even if auth deletion fails, try to delete from users table
-        console.log('🔄 Attempting to delete from users table anyway...');
-      } else {
-        console.log('✅ User deleted from Supabase Auth');
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase URL or Anon Key not configured');
       }
-      
-      // 2. Delete from users table
-      const { error: dbError } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', id);
-      
-      if (dbError) {
-        console.error('❌ Database deletion error:', dbError);
-        throw dbError;
+
+      // Call Edge Function for secure user deletion
+      const response = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        },
+        body: JSON.stringify({ userId: id })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to delete user: ${response.status}`);
       }
-      
-      console.log('✅ User deleted from users table');
+
+      const result = await response.json();
+      console.log('✅ User deleted via edge function:', result);
       return true;
       
     } catch (error) {
       console.error('❌ Complete user deletion failed:', error);
-      throw error;
+      
+      // Fallback: Try database-only deletion if Edge Function fails
+      console.log('🔄 Attempting database-only deletion as fallback...');
+      try {
+        await this.permanentDeleteUser(id);
+        console.log('✅ User deleted from database (auth cleanup may be needed manually)');
+        return {
+          success: true,
+          requiresManualCleanup: true,
+          message: 'User removed from application. Manual auth cleanup required in Supabase dashboard.'
+        };
+      } catch (dbError) {
+        console.error('❌ Database deletion also failed:', dbError);
+        throw new Error(`User deletion failed: ${error.message}. Fallback also failed: ${dbError.message}`);
+      }
     }
   },
 

@@ -24,6 +24,7 @@ import { supabase } from './lib/supabase/supabaseClient';
 // AuthCallback component for handling OAuth redirects
 function AuthCallback() {
   const navigate = useNavigate();
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -32,32 +33,50 @@ function AuthCallback() {
         
         // Get the URL hash fragments
         const hash = window.location.hash;
-        if (hash && hash.includes('access_token')) {
-          console.log('📋 OAuth callback detected with access token');
-          
-          // Let Supabase handle the token extraction from URL
-          const { data: { session }, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('❌ Auth callback error:', error);
-            navigate('/login');
-            return;
-          }
+        console.log('📋 Hash:', hash);
+        
+        if (!hash || !hash.includes('access_token')) {
+          console.log('❌ No access token in URL hash');
+          setError('No authentication token found');
+          setTimeout(() => navigate('/login'), 2000);
+          return;
+        }
 
-          if (session) {
-            console.log('✅ OAuth successful, user:', session.user.email);
-            navigate('/dashboard');
-          } else {
-            console.log('❌ No session after OAuth callback');
-            navigate('/login');
-          }
+        console.log('🔑 OAuth callback detected with access token');
+        
+        // Wait a moment for Supabase to process the URL
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Let Supabase handle the token extraction and session creation
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('❌ Auth callback error:', sessionError);
+          setError(sessionError.message);
+          setTimeout(() => navigate('/login'), 2000);
+          return;
+        }
+
+        if (session?.user) {
+          console.log('✅ OAuth successful, user:', session.user.email);
+          
+          // Clear the hash from URL
+          window.location.hash = '';
+          
+          // Wait a moment for the auth context to update
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Navigate to dashboard
+          navigate('/dashboard', { replace: true });
         } else {
-          console.log('❌ No OAuth tokens found in URL');
-          navigate('/login');
+          console.log('❌ No session after OAuth callback');
+          setError('Authentication failed - no session created');
+          setTimeout(() => navigate('/login'), 2000);
         }
       } catch (error) {
         console.error('❌ Error in auth callback:', error);
-        navigate('/login');
+        setError(error.message);
+        setTimeout(() => navigate('/login'), 2000);
       }
     };
 
@@ -67,7 +86,15 @@ function AuthCallback() {
   return (
     <div className="app-loading">
       <div className="spinner"></div>
-      <p>Completing authentication...</p>
+      {error ? (
+        <div>
+          <p style={{ color: 'red' }}>Authentication Error</p>
+          <p style={{ fontSize: '14px' }}>{error}</p>
+          <p style={{ fontSize: '12px' }}>Redirecting to login...</p>
+        </div>
+      ) : (
+        <p>Completing authentication...</p>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 // src/contexts/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase/supabaseClient';
 
 const AuthContext = createContext();
@@ -104,6 +104,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
+  
+  // Use refs to track if we're in the middle of operations
+  const isUpdatingRef = useRef(false);
+  const isLoggingOutRef = useRef(false);
 
   // Helper functions
   const isLockedOut = () => {
@@ -118,30 +122,58 @@ export const AuthProvider = ({ children }) => {
     return user && userRole === 'admin' && userVerified && userActive;
   };
 
+  // Function to completely clear auth state
+  const clearAuthState = () => {
+    console.log('🧹 Clearing all auth state');
+    setUser(null);
+    setUserRole('user');
+    setUserVerified(false);
+    setUserActive(false);
+    setError(null);
+  };
+
   // Function to update user state
   const updateUserState = async (currentUser) => {
-    if (!currentUser) {
-      setUser(null);
-      setUserRole('user');
-      setUserVerified(false);
-      setUserActive(false);
+    // Prevent concurrent updates
+    if (isUpdatingRef.current) {
+      console.log('⏭️ Skipping concurrent update');
       return;
     }
 
-    console.log('👤 Updating user state for:', currentUser.email);
-    
-    // Ensure user exists in database
-    await ensureUserInDatabase(currentUser);
-    
-    // Get user profile
-    const profile = await getUserProfile(currentUser.id);
-    console.log('🎭 User profile:', profile);
-    
-    setUser(currentUser);
-    setUserRole(profile.role);
-    setUserVerified(profile.verified);
-    setUserActive(profile.active);
-    setError(null);
+    // Don't update if we're logging out
+    if (isLoggingOutRef.current) {
+      console.log('⏭️ Skipping update during logout');
+      return;
+    }
+
+    isUpdatingRef.current = true;
+
+    try {
+      if (!currentUser) {
+        clearAuthState();
+        return;
+      }
+
+      console.log('👤 Updating user state for:', currentUser.email);
+      
+      // Ensure user exists in database
+      await ensureUserInDatabase(currentUser);
+      
+      // Get user profile
+      const profile = await getUserProfile(currentUser.id);
+      console.log('🎭 User profile:', profile);
+      
+      setUser(currentUser);
+      setUserRole(profile.role);
+      setUserVerified(profile.verified);
+      setUserActive(profile.active);
+      setError(null);
+    } catch (error) {
+      console.error('Error updating user state:', error);
+      setError(error.message);
+    } finally {
+      isUpdatingRef.current = false;
+    }
   };
 
   useEffect(() => {
@@ -152,24 +184,49 @@ export const AuthProvider = ({ children }) => {
       try {
         console.log('🔄 Initializing auth...');
         
-        // First, set up the auth listener BEFORE getting session
-        // This ensures we catch any auth state changes during initialization
+        // Set up the auth listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             console.log('🔄 Auth state changed:', event, session?.user?.email);
             
             if (!mounted) return;
 
+            // Skip updates during logout
+            if (isLoggingOutRef.current && event === 'SIGNED_OUT') {
+              console.log('✅ Logout complete');
+              isLoggingOutRef.current = false;
+              clearAuthState();
+              if (loading) setLoading(false);
+              return;
+            }
+
             try {
-              if (event === 'INITIAL_SESSION') {
-                // Initial session load
-                console.log('📋 Initial session detected');
+              // Handle different auth events
+              switch (event) {
+                case 'INITIAL_SESSION':
+                  console.log('📋 Initial session detected');
+                  break;
+                case 'SIGNED_IN':
+                  console.log('✅ User signed in');
+                  break;
+                case 'SIGNED_OUT':
+                  console.log('👋 User signed out');
+                  clearAuthState();
+                  if (loading) setLoading(false);
+                  return;
+                case 'TOKEN_REFRESHED':
+                  console.log('🔄 Token refreshed');
+                  break;
+                case 'USER_UPDATED':
+                  console.log('📝 User updated');
+                  break;
               }
               
               if (session?.user) {
                 await updateUserState(session.user);
-              } else {
-                await updateUserState(null);
+              } else if (event !== 'SIGNED_OUT') {
+                // Only clear if not already handled by SIGNED_OUT
+                clearAuthState();
               }
               
               if (!initialized) {
@@ -188,8 +245,7 @@ export const AuthProvider = ({ children }) => {
 
         authSubscription = subscription;
 
-        // Now get the current session
-        // The onAuthStateChange will fire with INITIAL_SESSION event
+        // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
@@ -199,12 +255,11 @@ export const AuthProvider = ({ children }) => {
 
         console.log('📋 Current session:', session?.user?.email || 'No session');
 
-        // If we have a session, update state
-        // (The auth state change listener will also fire, but this ensures immediate update)
+        // Update state based on session
         if (mounted && session?.user) {
           await updateUserState(session.user);
         } else if (mounted) {
-          await updateUserState(null);
+          clearAuthState();
         }
 
         if (mounted && !initialized) {
@@ -215,7 +270,7 @@ export const AuthProvider = ({ children }) => {
         console.error('Auth initialization error:', error);
         if (mounted) {
           setError(error.message);
-          setUser(null);
+          clearAuthState();
           setInitialized(true);
         }
       } finally {
@@ -231,7 +286,7 @@ export const AuthProvider = ({ children }) => {
       initializeAuth();
     }, 100);
 
-    // Safety timeout - increased to 10 seconds
+    // Safety timeout
     const safetyTimeout = setTimeout(() => {
       if (mounted && loading) {
         console.warn('⚠️ Auth loading timeout - forcing loading to false');
@@ -252,16 +307,36 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      console.log('🚪 Starting logout process...');
+      isLoggingOutRef.current = true;
       setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
       
-      await updateUserState(null);
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+        throw error;
+      }
+      
+      // Clear local state
+      clearAuthState();
+      
+      // Clear any stored session data manually as backup
+      try {
+        localStorage.removeItem('supabase.auth.token');
+        sessionStorage.clear();
+      } catch (e) {
+        console.warn('Could not clear storage:', e);
+      }
+      
       console.log('✅ Logout successful');
     } catch (err) {
       console.error('❌ Logout failed:', err);
       setError(err.message);
+      // Force clear state even on error
+      clearAuthState();
     } finally {
+      isLoggingOutRef.current = false;
       setLoading(false);
     }
   };
@@ -270,6 +345,13 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Clear any existing session first
+      console.log('🧹 Clearing existing session before Google login');
+      await supabase.auth.signOut();
+      
+      // Small delay to ensure clean state
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       const redirectUrl = `${window.location.origin}/#/auth/callback`;
       console.log('🔄 Initiating Google OAuth with redirect:', redirectUrl);

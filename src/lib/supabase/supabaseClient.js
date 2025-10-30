@@ -3,13 +3,16 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL 
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Simplified configuration for session persistence
+// Enhanced configuration for session persistence
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
+    flowType: 'pkce',
+    storage: window.localStorage, // Explicitly set storage
+    storageKey: 'supabase.auth.token', // Custom storage key
+    debug: true // Enable debug mode to see auth logs
   }
 })
 

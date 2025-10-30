@@ -41,7 +41,7 @@ const ensureUserInDatabase = async (user) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (fetchError) {
+    if (fetchError && fetchError.code !== 'PGRST116') {
       console.warn('Error checking existing user:', fetchError);
     }
 
@@ -103,6 +103,7 @@ export const AuthProvider = ({ children }) => {
   const [userActive, setUserActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [initialized, setInitialized] = useState(false);
 
   // Helper functions
   const isLockedOut = () => {
@@ -117,56 +118,105 @@ export const AuthProvider = ({ children }) => {
     return user && userRole === 'admin' && userVerified && userActive;
   };
 
+  // Function to update user state
+  const updateUserState = async (currentUser) => {
+    if (!currentUser) {
+      setUser(null);
+      setUserRole('user');
+      setUserVerified(false);
+      setUserActive(false);
+      return;
+    }
+
+    console.log('👤 Updating user state for:', currentUser.email);
+    
+    // Ensure user exists in database
+    await ensureUserInDatabase(currentUser);
+    
+    // Get user profile
+    const profile = await getUserProfile(currentUser.id);
+    console.log('🎭 User profile:', profile);
+    
+    setUser(currentUser);
+    setUserRole(profile.role);
+    setUserVerified(profile.verified);
+    setUserActive(profile.active);
+    setError(null);
+  };
+
   useEffect(() => {
     let mounted = true;
+    let authSubscription = null;
 
     const initializeAuth = async () => {
       try {
         console.log('🔄 Initializing auth...');
-        setLoading(true);
         
-        // Get current session - this is the key change
+        // First, set up the auth listener BEFORE getting session
+        // This ensures we catch any auth state changes during initialization
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('🔄 Auth state changed:', event, session?.user?.email);
+            
+            if (!mounted) return;
+
+            try {
+              if (event === 'INITIAL_SESSION') {
+                // Initial session load
+                console.log('📋 Initial session detected');
+              }
+              
+              if (session?.user) {
+                await updateUserState(session.user);
+              } else {
+                await updateUserState(null);
+              }
+              
+              if (!initialized) {
+                setInitialized(true);
+              }
+            } catch (error) {
+              console.error('Auth state change error:', error);
+              setError(error.message);
+            } finally {
+              if (loading) {
+                setLoading(false);
+              }
+            }
+          }
+        );
+
+        authSubscription = subscription;
+
+        // Now get the current session
+        // The onAuthStateChange will fire with INITIAL_SESSION event
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           console.error('Session error:', sessionError);
-          if (mounted) {
-            setError(sessionError.message);
-            setLoading(false);
-          }
-          return;
+          throw sessionError;
         }
 
-        console.log('📋 Session found:', session?.user?.email);
+        console.log('📋 Current session:', session?.user?.email || 'No session');
 
-        if (session?.user && mounted) {
-          console.log('👤 User authenticated, ensuring in database...');
-          
-          // Ensure user exists in public.users table
-          await ensureUserInDatabase(session.user);
-          
-          // Get user profile including verification status
-          const profile = await getUserProfile(session.user.id);
-          console.log('🎭 User profile:', profile);
-          
-          if (mounted) {
-            setUser(session.user);
-            setUserRole(profile.role);
-            setUserVerified(profile.verified);
-            setUserActive(profile.active);
-            setError(null);
-          }
+        // If we have a session, update state
+        // (The auth state change listener will also fire, but this ensures immediate update)
+        if (mounted && session?.user) {
+          await updateUserState(session.user);
         } else if (mounted) {
-          console.log('❌ No session found');
-          setUser(null);
-          setUserRole('user');
-          setUserVerified(false);
-          setUserActive(false);
+          await updateUserState(null);
         }
+
+        if (mounted && !initialized) {
+          setInitialized(true);
+        }
+
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (mounted) {
           setError(error.message);
+          setUser(null);
+          setInitialized(true);
         }
       } finally {
         if (mounted) {
@@ -176,65 +226,29 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    initializeAuth();
+    // Small delay to ensure Supabase client is ready
+    const initTimeout = setTimeout(() => {
+      initializeAuth();
+    }, 100);
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔄 Auth state changed:', event, session?.user?.email);
-        
-        if (!mounted) return;
-
-        try {
-          if (session?.user) {
-            console.log('👤 Auth change - user present, ensuring in database...');
-            
-            // Ensure user exists in public.users table
-            await ensureUserInDatabase(session.user);
-            
-            // Get user profile including verification status
-            const profile = await getUserProfile(session.user.id);
-            console.log('🎭 User profile:', profile);
-            
-            if (mounted) {
-              setUser(session.user);
-              setUserRole(profile.role);
-              setUserVerified(profile.verified);
-              setUserActive(profile.active);
-              setError(null);
-              setLoading(false);
-            }
-          } else {
-            console.log('👤 Auth change - no user');
-            setUser(null);
-            setUserRole('user');
-            setUserVerified(false);
-            setUserActive(false);
-            setError(null);
-            setLoading(false);
-          }
-        } catch (error) {
-          console.error('Auth state change error:', error);
-          setError(error.message);
-          setLoading(false);
-        }
-      }
-    );
-
-    // Safety timeout
+    // Safety timeout - increased to 10 seconds
     const safetyTimeout = setTimeout(() => {
       if (mounted && loading) {
         console.warn('⚠️ Auth loading timeout - forcing loading to false');
         setLoading(false);
+        setInitialized(true);
       }
-    }, 5000);
+    }, 10000);
 
     return () => {
       mounted = false;
+      clearTimeout(initTimeout);
       clearTimeout(safetyTimeout);
-      subscription.unsubscribe();
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
     };
-  }, []);
+  }, []); // Only run once on mount
 
   const logout = async () => {
     try {
@@ -242,11 +256,7 @@ export const AuthProvider = ({ children }) => {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
-      setUser(null);
-      setUserRole('user');
-      setUserVerified(false);
-      setUserActive(false);
-      setError(null);
+      await updateUserState(null);
       console.log('✅ Logout successful');
     } catch (err) {
       console.error('❌ Logout failed:', err);
@@ -261,10 +271,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
+      const redirectUrl = `${window.location.origin}/#/auth/callback`;
+      console.log('🔄 Initiating Google OAuth with redirect:', redirectUrl);
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/#/auth/callback`
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       });
       
@@ -275,13 +292,22 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('❌ Google login failed:', err);
       setError(err.message);
-      throw err;
-    } finally {
       setLoading(false);
+      throw err;
     }
   };
 
   const clearError = () => setError(null);
+
+  // Don't render children until initialized
+  if (!initialized) {
+    return (
+      <div className="app-loading">
+        <div className="spinner"></div>
+        <p>Initializing authentication...</p>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ 

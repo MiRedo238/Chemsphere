@@ -1,44 +1,58 @@
+// src/services/auditService.js
 import { supabase } from '../lib/supabase/supabaseClient';
 
 export const auditService = {
   async getAll() {
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .order('timestamp', { ascending: false });
-    
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('timestamp', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching audit logs:', error);
+      return [];
+    }
   },
 
   async create(log) {
     try {
       // Get current user session
       const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.warn('No user session found for audit log');
+        return null;
+      }
+
+      // Get user profile
       const { data: userProfile } = await supabase
         .from('users')
         .select('username, role')
-        .eq('id', user?.id)
+        .eq('id', user.id)
         .single();
 
-      // Define valid audit actions based on your enum
+      // Define valid audit actions
       const validActions = [
         'CREATE', 'UPDATE', 'DELETE', 'VIEW', 'LOGIN', 'LOGOUT',
         'VERIFY_USER', 'UPDATE_USER_ROLE', 'ACTIVATE_USER', 'DEACTIVATE_USER', 'DELETE_USER'
       ];
 
-      // Validate and fallback action if needed
+      // Validate action
       const action = validActions.includes(log.action) ? log.action : 'UPDATE';
 
-      // Map the log data to match your table structure
+      // Prepare audit data
       const auditData = {
-        type: 'user_management', // or determine type from action
+        type: log.type || 'system',
         action: action,
-        item_name: log.target || 'User',
+        item_name: log.target || 'Unknown',
         user_role: userProfile?.role || 'user',
-        user_name: userProfile?.username || 'System',
+        user_name: userProfile?.username || user.email || 'Unknown',
         details: log.metadata || {},
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        user_id: user.id // Store user ID for better tracking
       };
 
       console.log('Inserting audit log:', auditData);
@@ -51,70 +65,109 @@ export const auditService = {
       
       if (error) {
         console.error('Audit log insertion error:', error);
-        // Log the error but don't break the application
         return null;
       }
+      
       return data;
     } catch (error) {
       console.error('Audit service error:', error);
-      // Don't throw error to prevent breaking user operations
       return null;
     }
   },
 
+  // Enhanced filtering methods
   async getByDateRange(startDate, endDate) {
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .gte('timestamp', startDate)
-      .lte('timestamp', endDate)
-      .order('timestamp', { ascending: false });
-    
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .gte('timestamp', startDate)
+        .lte('timestamp', endDate)
+        .order('timestamp', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching audit logs by date range:', error);
+      return [];
+    }
   },
 
   async getByUser(userName) {
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .eq('user_name', userName)
-      .order('timestamp', { ascending: false });
-    
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('user_name', userName)
+        .order('timestamp', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching audit logs by user:', error);
+      return [];
+    }
   },
 
   async getByAction(action) {
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .eq('action', action)
-      .order('timestamp', { ascending: false });
-    
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('action', action)
+        .order('timestamp', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching audit logs by action:', error);
+      return [];
+    }
   },
 
   async getByType(type) {
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .eq('type', type)
-      .order('timestamp', { ascending: false });
-    
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('type', type)
+        .order('timestamp', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching audit logs by type:', error);
+      return [];
+    }
   },
 
-  // Export audit logs to CSV
+  // Session-related audit methods
+  async logLogin(userId) {
+    return this.create({
+      action: 'LOGIN',
+      target: 'System',
+      type: 'authentication',
+      metadata: { userId, timestamp: new Date().toISOString() }
+    });
+  },
+
+  async logLogout(userId) {
+    return this.create({
+      action: 'LOGOUT',
+      target: 'System',
+      type: 'authentication',
+      metadata: { userId, timestamp: new Date().toISOString() }
+    });
+  },
+
+  // Export functionality
   async exportToCSV() {
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .order('timestamp', { ascending: false });
-    
-    if (error) throw error;
-    return data;
+    try {
+      const data = await this.getAll();
+      return data;
+    } catch (error) {
+      console.error('Error exporting audit logs:', error);
+      return [];
+    }
   }
 };

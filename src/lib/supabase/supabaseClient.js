@@ -3,30 +3,76 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL 
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Configure Supabase with session persistence
+// Enhanced configuration for session persistence
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: localStorage,
-    storageKey: 'supabase.auth.token'
+    storage: {
+      getItem: (key) => {
+        try {
+          return localStorage.getItem(key)
+        } catch (error) {
+          console.error('Error reading from localStorage:', error)
+          return null
+        }
+      },
+      setItem: (key, value) => {
+        try {
+          localStorage.setItem(key, value)
+        } catch (error) {
+          console.error('Error writing to localStorage:', error)
+        }
+      },
+      removeItem: (key) => {
+        try {
+          localStorage.removeItem(key)
+        } catch (error) {
+          console.error('Error removing from localStorage:', error)
+        }
+      }
+    },
+    flowType: 'pkce'
   }
 })
 
-// Helper function to check if we have a valid session
+// Enhanced session check
 export const hasValidSession = async () => {
-  const { data: { session }, error } = await supabase.auth.getSession()
-  if (error) {
-    console.error('Error checking session:', error)
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) {
+      console.error('Error checking session:', error)
+      return false
+    }
+    
+    if (!session) return false
+    
+    // Check if session is expired
+    const isExpired = new Date(session.expires_at * 1000) < new Date()
+    if (isExpired) {
+      console.log('Session expired, attempting refresh...')
+      const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError) {
+        console.error('Error refreshing session:', refreshError)
+        return false
+      }
+      return !!refreshedSession
+    }
+    
+    return true
+  } catch (error) {
+    console.error('Exception checking session:', error)
     return false
   }
-  return !!session
 }
 
-// Get current user with better error handling
+// Enhanced getCurrentUser with session validation
 export const getCurrentUser = async () => {
   try {
+    const hasSession = await hasValidSession()
+    if (!hasSession) return null
+    
     const { data: { user }, error } = await supabase.auth.getUser()
     if (error) {
       console.error('Error getting user:', error)
@@ -39,7 +85,7 @@ export const getCurrentUser = async () => {
   }
 }
 
-// In your supabaseClient.js
+// Get user role
 export const getUserRole = async () => {
   try {
     const user = await getCurrentUser()
@@ -51,10 +97,14 @@ export const getUserRole = async () => {
       .eq('id', user.id)
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error getting user role:', error);
+      return 'user';
+    }
+    
     return data?.role || 'user';
   } catch (error) {
-    console.error('Error getting user role:', error);
+    console.error('Exception getting user role:', error);
     return 'user';
   }
 };

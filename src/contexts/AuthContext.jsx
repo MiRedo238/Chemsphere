@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase/supabaseClient';
+import { supabase, hasValidSession } from '../lib/supabase/supabaseClient';
 
 const AuthContext = createContext();
 
@@ -60,9 +60,9 @@ const ensureUserInDatabase = async (user) => {
         id: user.id,
         username: username,
         email: user.email,
-        role: 'user', // Always default to 'user' for new OAuth users
+        role: 'user',
         active: true,
-        verified: false // New users are unverified by default
+        verified: false
       };
 
       const { data, error } = await supabase
@@ -72,10 +72,8 @@ const ensureUserInDatabase = async (user) => {
         .single();
       
       if (error) {
-        // If there's a conflict, user was probably created by trigger
         if (error.code === '23505') {
           console.log('✅ User already exists in database (likely from trigger)');
-          // Fetch the existing user
           const { data: existing } = await supabase
             .from('users')
             .select('*')
@@ -106,82 +104,91 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Add helper function to check if user is locked out
+  // Helper functions
   const isLockedOut = () => {
     return user && (!userVerified || !userActive);
   };
 
-  // Helper function to check if user can access protected content
   const canAccess = () => {
     return user && userVerified && userActive;
   };
 
-  // Helper function to check if user is admin
   const isAdmin = () => {
     return user && userRole === 'admin' && userVerified && userActive;
+  };
+
+  // Initialize auth state
+  const initializeAuth = async () => {
+    try {
+      console.log('🔄 Initializing auth state...');
+      setLoading(true);
+      
+      // First check if we have a valid session at all
+      const hasSession = await hasValidSession();
+      console.log('📋 Session check result:', hasSession);
+      
+      if (!hasSession) {
+        console.log('❌ No valid session found');
+        setUser(null);
+        setUserRole('user');
+        setUserVerified(false);
+        setUserActive(false);
+        setLoading(false);
+        return;
+      }
+
+      // Get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw sessionError;
+      }
+
+      console.log('📋 Session found for user:', session?.user?.email);
+
+      if (session?.user) {
+        console.log('👤 User authenticated, ensuring in database...');
+        
+        // Ensure user exists in public.users table
+        await ensureUserInDatabase(session.user);
+        
+        // Get user profile including verification status
+        const profile = await getUserProfile(session.user.id);
+        console.log('🎭 User profile:', profile);
+        
+        setUser(session.user);
+        setUserRole(profile.role);
+        setUserVerified(profile.verified);
+        setUserActive(profile.active);
+        setError(null);
+      } else {
+        console.log('❌ No user in session');
+        setUser(null);
+        setUserRole('user');
+        setUserVerified(false);
+        setUserActive(false);
+      }
+    } catch (error) {
+      console.error('❌ Auth initialization error:', error);
+      setError(error.message);
+      setUser(null);
+      setUserRole('user');
+      setUserVerified(false);
+      setUserActive(false);
+    } finally {
+      setLoading(false);
+      console.log('✅ Auth initialization complete');
+    }
   };
 
   useEffect(() => {
     let mounted = true;
 
-    const initializeAuth = async () => {
-      try {
-        console.log('🔄 Initializing auth...');
-        setLoading(true);
-        
-        // Get current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          if (mounted) {
-            setError(sessionError.message);
-            setLoading(false);
-          }
-          return;
-        }
-
-        console.log('📋 Session found:', session?.user?.email);
-
-        if (session?.user && mounted) {
-          console.log('👤 User authenticated, ensuring in database...');
-          
-          // Ensure user exists in public.users table
-          await ensureUserInDatabase(session.user);
-          
-          // Get user profile including verification status
-          const profile = await getUserProfile(session.user.id);
-          console.log('🎭 User profile:', profile);
-          
-          if (mounted) {
-            setUser(session.user);
-            setUserRole(profile.role);
-            setUserVerified(profile.verified);
-            setUserActive(profile.active);
-          }
-        } else if (mounted) {
-          console.log('❌ No session found');
-          setUser(null);
-          setUserRole('user');
-          setUserVerified(false);
-          setUserActive(false);
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        if (mounted) {
-          setError(error.message);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-          console.log('✅ Auth initialization complete');
-        }
-      }
-    };
-
+    // Initialize auth on component mount
     initializeAuth();
 
-    // Listen for auth changes
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔄 Auth state changed:', event, session?.user?.email);
@@ -189,37 +196,47 @@ export const AuthProvider = ({ children }) => {
         if (!mounted) return;
 
         try {
-          if (session?.user) {
-            console.log('👤 Auth change - user present, ensuring in database...');
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            console.log('👤 User signed in or token refreshed');
             
-            // Ensure user exists in public.users table
-            await ensureUserInDatabase(session.user);
-            
-            // Get user profile including verification status
-            const profile = await getUserProfile(session.user.id);
-            console.log('🎭 User profile:', profile);
-            
-            if (mounted) {
-              setUser(session.user);
-              setUserRole(profile.role);
-              setUserVerified(profile.verified);
-              setUserActive(profile.active);
-              setError(null);
-              setLoading(false);
+            if (session?.user) {
+              await ensureUserInDatabase(session.user);
+              const profile = await getUserProfile(session.user.id);
+              
+              if (mounted) {
+                setUser(session.user);
+                setUserRole(profile.role);
+                setUserVerified(profile.verified);
+                setUserActive(profile.active);
+                setError(null);
+              }
             }
-          } else {
-            console.log('👤 Auth change - no user');
-            setUser(null);
-            setUserRole('user');
-            setUserVerified(false);
-            setUserActive(false);
-            setError(null);
-            setLoading(false);
+          } else if (event === 'SIGNED_OUT') {
+            console.log('👤 User signed out');
+            if (mounted) {
+              setUser(null);
+              setUserRole('user');
+              setUserVerified(false);
+              setUserActive(false);
+              setError(null);
+            }
+          } else if (event === 'USER_UPDATED') {
+            console.log('👤 User updated');
+            if (session?.user) {
+              const profile = await getUserProfile(session.user.id);
+              if (mounted) {
+                setUser(session.user);
+                setUserRole(profile.role);
+                setUserVerified(profile.verified);
+                setUserActive(profile.active);
+              }
+            }
           }
         } catch (error) {
-          console.error('Auth state change error:', error);
-          setError(error.message);
-          setLoading(false);
+          console.error('❌ Auth state change error:', error);
+          if (mounted) {
+            setError(error.message);
+          }
         }
       }
     );
@@ -230,7 +247,7 @@ export const AuthProvider = ({ children }) => {
         console.warn('⚠️ Auth loading timeout - forcing loading to false');
         setLoading(false);
       }
-    }, 5000); // Reduced timeout
+    }, 8000);
 
     return () => {
       mounted = false;
@@ -244,6 +261,9 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      // Clear all local storage items related to auth
+      localStorage.removeItem('supabase.auth.token');
       
       setUser(null);
       setUserRole('user');
@@ -267,7 +287,11 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/#/auth/callback`
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       });
       
@@ -286,6 +310,27 @@ export const AuthProvider = ({ children }) => {
 
   const clearError = () => setError(null);
 
+  // Add a method to manually refresh the session
+  const refreshSession = async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.refreshSession();
+      if (error) throw error;
+      
+      if (session?.user) {
+        const profile = await getUserProfile(session.user.id);
+        setUser(session.user);
+        setUserRole(profile.role);
+        setUserVerified(profile.verified);
+        setUserActive(profile.active);
+      }
+      
+      return session;
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user,
@@ -294,10 +339,11 @@ export const AuthProvider = ({ children }) => {
       userActive,
       loading,
       error,
-      isLockedOut: isLockedOut(), // Add computed locked out status
+      isLockedOut: isLockedOut(),
       loginWithGoogle,
       logout,
       clearError,
+      refreshSession,
       canAccess: canAccess(),
       isAdmin: isAdmin()
     }}>

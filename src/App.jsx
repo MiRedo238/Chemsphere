@@ -1,6 +1,6 @@
 // App.jsx
 import React, { useState, useEffect, useContext } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Plus, Menu, X } from 'lucide-react';
 import Login from './components/Login';
@@ -19,6 +19,43 @@ import UserManagement from './components/UserManagement';
 import RouteGuard from './components/RouteGuard';
 import Unauthorized from './pages/Unauthorized';
 import VerificationPending from './components/VerificationPending';
+import { supabase } from './lib/supabase/supabaseClient';
+
+// AuthCallback component for handling OAuth redirects
+function AuthCallback() {
+  const { refreshSession } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      try {
+        // Wait for Supabase to process the OAuth callback
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Auth callback error:', error);
+          navigate('/login');
+          return;
+        }
+
+        if (session) {
+          // Refresh the session to ensure all data is loaded
+          await refreshSession();
+          navigate('/dashboard');
+        } else {
+          navigate('/login');
+        }
+      } catch (error) {
+        console.error('Error in auth callback:', error);
+        navigate('/login');
+      }
+    };
+
+    handleAuthCallback();
+  }, [navigate, refreshSession]);
+
+  return <LoadingScreen />;
+}
 
 // Main Dashboard Component (Protected)
 function DashboardContent() {
@@ -273,12 +310,13 @@ function LoadingScreen() {
 
 // Main App Component with Routing
 function App() {
-  const { user, loading, isLockedOut } = useAuth();
+  const { user, loading, isLockedOut, error } = useAuth();
 
   console.log('🔍 App.jsx - Auth State:', { 
     loading, 
     user: user ? user.email : 'null',
-    isLockedOut
+    isLockedOut,
+    error
   });
 
   // Show loading screen while checking authentication
@@ -301,6 +339,12 @@ function App() {
                 element={
                   user ? <Navigate to="/dashboard" replace /> : <Login />
                 } 
+              />
+              
+              {/* Auth callback route for OAuth */}
+              <Route 
+                path="/auth/callback" 
+                element={<AuthCallback />}
               />
               
               {/* Protected routes */}

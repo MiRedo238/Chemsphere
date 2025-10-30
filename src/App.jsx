@@ -23,38 +23,53 @@ import { supabase } from './lib/supabase/supabaseClient';
 
 // AuthCallback component for handling OAuth redirects
 function AuthCallback() {
-  const { refreshSession } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Wait for Supabase to process the OAuth callback
-        const { data: { session }, error } = await supabase.auth.getSession();
+        console.log('🔄 Processing OAuth callback...');
         
-        if (error) {
-          console.error('Auth callback error:', error);
-          navigate('/login');
-          return;
-        }
+        // Get the URL hash fragments
+        const hash = window.location.hash;
+        if (hash && hash.includes('access_token')) {
+          console.log('📋 OAuth callback detected with access token');
+          
+          // Let Supabase handle the token extraction from URL
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('❌ Auth callback error:', error);
+            navigate('/login');
+            return;
+          }
 
-        if (session) {
-          // Refresh the session to ensure all data is loaded
-          await refreshSession();
-          navigate('/dashboard');
+          if (session) {
+            console.log('✅ OAuth successful, user:', session.user.email);
+            navigate('/dashboard');
+          } else {
+            console.log('❌ No session after OAuth callback');
+            navigate('/login');
+          }
         } else {
+          console.log('❌ No OAuth tokens found in URL');
           navigate('/login');
         }
       } catch (error) {
-        console.error('Error in auth callback:', error);
+        console.error('❌ Error in auth callback:', error);
         navigate('/login');
       }
     };
 
     handleAuthCallback();
-  }, [navigate, refreshSession]);
+  }, [navigate]);
 
-  return <LoadingScreen />;
+  return (
+    <div className="app-loading">
+      <div className="spinner"></div>
+      <p>Completing authentication...</p>
+    </div>
+  );
 }
 
 // Main Dashboard Component (Protected)

@@ -1,6 +1,6 @@
-// App.jsx
+// App.jsx - Fixed version
 import React, { useState, useEffect, useContext } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Plus, Menu, X } from 'lucide-react';
 import Login from './components/Login';
@@ -24,58 +24,58 @@ import { supabase } from './lib/supabase/supabaseClient';
 // AuthCallback component for handling OAuth redirects
 function AuthCallback() {
   const navigate = useNavigate();
-  const [error, setError] = useState(null);
+  const [status, setStatus] = useState('processing');
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
         console.log('🔄 Processing OAuth callback...');
+        setStatus('processing');
         
-        // Get the URL hash fragments
         const hash = window.location.hash;
-        console.log('📋 Hash:', hash);
         
         if (!hash || !hash.includes('access_token')) {
-          console.log('❌ No access token in URL hash');
-          setError('No authentication token found');
+          console.log('❌ No access token in URL');
+          setStatus('error');
           setTimeout(() => navigate('/login'), 2000);
           return;
         }
 
-        console.log('🔑 OAuth callback detected with access token');
+        console.log('🔑 OAuth tokens detected in URL');
         
-        // Wait a moment for Supabase to process the URL
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Give Supabase time to process the URL hash
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Let Supabase handle the token extraction and session creation
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Verify session was created
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (sessionError) {
-          console.error('❌ Auth callback error:', sessionError);
-          setError(sessionError.message);
+        if (error) {
+          console.error('❌ Session error:', error);
+          setStatus('error');
           setTimeout(() => navigate('/login'), 2000);
           return;
         }
 
         if (session?.user) {
-          console.log('✅ OAuth successful, user:', session.user.email);
+          console.log('✅ OAuth successful:', session.user.email);
+          setStatus('success');
           
-          // Clear the hash from URL
+          // Clear hash
           window.location.hash = '';
           
-          // Wait a moment for the auth context to update
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Wait for auth context to update
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           // Navigate to dashboard
           navigate('/dashboard', { replace: true });
         } else {
-          console.log('❌ No session after OAuth callback');
-          setError('Authentication failed - no session created');
+          console.log('❌ No session created');
+          setStatus('error');
           setTimeout(() => navigate('/login'), 2000);
         }
       } catch (error) {
-        console.error('❌ Error in auth callback:', error);
-        setError(error.message);
+        console.error('❌ Callback error:', error);
+        setStatus('error');
         setTimeout(() => navigate('/login'), 2000);
       }
     };
@@ -86,20 +86,54 @@ function AuthCallback() {
   return (
     <div className="app-loading">
       <div className="spinner"></div>
-      {error ? (
-        <div>
-          <p style={{ color: 'red' }}>Authentication Error</p>
-          <p style={{ fontSize: '14px' }}>{error}</p>
-          <p style={{ fontSize: '12px' }}>Redirecting to login...</p>
-        </div>
-      ) : (
-        <p>Completing authentication...</p>
-      )}
+      {status === 'processing' && <p>Completing authentication...</p>}
+      {status === 'success' && <p>Success! Redirecting...</p>}
+      {status === 'error' && <p>Authentication failed. Redirecting to login...</p>}
     </div>
   );
 }
 
-// Main Dashboard Component (Protected)
+// Protected Route wrapper that waits for auth to be ready
+function ProtectedRoute({ children }) {
+  const { user, loading, isLockedOut } = useAuth();
+  const location = useLocation();
+
+  console.log('🛡️ ProtectedRoute check:', { 
+    user: user?.email, 
+    loading, 
+    isLockedOut,
+    path: location.pathname 
+  });
+
+  // Still loading - show loading screen
+  if (loading) {
+    console.log('⏳ Auth still loading...');
+    return (
+      <div className="app-loading">
+        <div className="spinner"></div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // Not authenticated - redirect to login
+  if (!user) {
+    console.log('❌ No user, redirecting to login');
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // User is locked out - show verification pending
+  if (isLockedOut) {
+    console.log('🔒 User locked out');
+    return <VerificationPending />;
+  }
+
+  // All good - render children
+  console.log('✅ User authenticated and verified');
+  return children;
+}
+
+// Main Dashboard Component
 function DashboardContent() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -107,7 +141,6 @@ function DashboardContent() {
   const [selectedItem, setSelectedItem] = useState(null);
   const { user, userRole } = useAuth();
 
-  // Use DatabaseContext for real data
   const { 
     chemicals, 
     equipment, 
@@ -117,9 +150,7 @@ function DashboardContent() {
     fetchEquipment
   } = useContext(DatabaseContext);
 
-  // Sync activeSection with currentView
   useEffect(() => {
-    // Map sidebar sections to views
     const sectionToViewMap = {
       'dashboard': 'dashboard',
       'chemicals': 'chemicals',
@@ -136,21 +167,19 @@ function DashboardContent() {
     }
   }, [activeSection]);
 
-   useEffect(() => {
+  useEffect(() => {
     if (fetchChemicals) fetchChemicals();
     if (fetchEquipment) fetchEquipment();
   }, [fetchChemicals, fetchEquipment]);
 
   const [previousView, setPreviousView] = useState('chemicals'); 
   
-  // When navigating to detail view
   const handleViewDetail = (item, fromSection) => {
-    setPreviousView(fromSection); // Store which section we came from
+    setPreviousView(fromSection);
     setSelectedItem(item);
     setCurrentView('detail');
   };
 
-  // When navigating back
   const handleBack = () => {
     setCurrentView(previousView);
     setSelectedItem(null);
@@ -166,18 +195,15 @@ function DashboardContent() {
 
   const addAuditLog = (log) => {
     console.log('Audit Log:', log);
-    // TODO: Implement audit log functionality
   };
 
   const refreshData = async () => {
-    // TODO: Implement data refresh
     console.log('Refreshing data...');
   };
 
   const handleSetCurrentView = (view) => {
-    setPreviousView(currentView); // Store current view as previous before changing
+    setPreviousView(currentView);
     setCurrentView(view);
-    // Update active section based on view
     const viewToSectionMap = {
       'dashboard': 'dashboard',
       'chemicals': 'chemicals',
@@ -193,10 +219,9 @@ function DashboardContent() {
     }
   };
 
-  // Update when setting selected item to track where we're coming from
   const handleSetSelectedItem = (item, fromView = null) => {
     if (fromView) {
-      setPreviousView(fromView); // Store the specific view we're coming from
+      setPreviousView(fromView);
     }
     setSelectedItem(item);
     handleSetCurrentView('detail');
@@ -272,13 +297,13 @@ function DashboardContent() {
       case 'expired-chemicals':
         return (
           <ExpiredChemicals 
-          setSelectedItem={(item) => handleSetSelectedItem(item, 'expired-chemicals')}
-          setCurrentView={setCurrentView}
-          userRole={userRole}
-          updateChemicals={setChemicals} // This should update the context
-          addAuditLog={addAuditLog}
-          refreshData={refreshData}
-        />
+            setSelectedItem={(item) => handleSetSelectedItem(item, 'expired-chemicals')}
+            setCurrentView={setCurrentView}
+            userRole={userRole}
+            updateChemicals={setChemicals}
+            addAuditLog={addAuditLog}
+            refreshData={refreshData}
+          />
         );
 
       case 'users':
@@ -304,12 +329,10 @@ function DashboardContent() {
 
   return (
     <div className="dashboard">
-      {/* Mobile Menu Button */}
       <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
         {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Sidebar Component */}
       <Sidebar 
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
@@ -319,7 +342,6 @@ function DashboardContent() {
         userRole={userRole} 
       />
 
-      {/* Main Content */}
       <main className="main-content">
         <header className="top-bar">
           {currentView === 'dashboard' && (
@@ -352,22 +374,12 @@ function LoadingScreen() {
 
 // Main App Component with Routing
 function App() {
-  const { user, loading, isLockedOut, error } = useAuth();
+  const { user, loading } = useAuth();
 
-  console.log('🔍 App.jsx - Auth State:', { 
-    loading, 
-    user: user ? user.email : 'null',
-    isLockedOut,
-    error
-  });
+  console.log('🎯 App render - User:', user?.email, 'Loading:', loading);
 
-  // Show loading screen while checking authentication
-  if (loading) {
-    console.log('🔍 App.jsx - Showing loading screen');
-    return <LoadingScreen />;
-  }
-
-  console.log('🔍 App.jsx - Loading complete, rendering app');
+  // IMPORTANT: Don't show loading screen - let routes handle it
+  // This prevents the flash and routing issues
 
   return (
     <DatabaseProvider>
@@ -375,15 +387,19 @@ function App() {
         <div className="app">
           <ErrorBoundary>
             <Routes>
-              {/* Public route - redirect to dashboard if already authenticated */}
+              {/* Public route */}
               <Route 
                 path="/login" 
                 element={
-                  user ? <Navigate to="/dashboard" replace /> : <Login />
+                  !loading && user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <Login />
+                  )
                 } 
               />
               
-              {/* Auth callback route for OAuth */}
+              {/* Auth callback route */}
               <Route 
                 path="/auth/callback" 
                 element={<AuthCallback />}
@@ -393,37 +409,50 @@ function App() {
               <Route 
                 path="/dashboard/*" 
                 element={
-                  user ? (
-                    isLockedOut ? <VerificationPending /> : <DashboardContent />
+                  <ProtectedRoute>
+                    <DashboardContent />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/admin" 
+                element={
+                  <RouteGuard requireAdmin={true}>
+                    <UserManagement />
+                  </RouteGuard>
+                } 
+              />
+
+              <Route path="/unauthorized" element={<Unauthorized />} />
+              
+              {/* Default route - use ProtectedRoute logic */}
+              <Route 
+                path="/" 
+                element={
+                  loading ? (
+                    <LoadingScreen />
+                  ) : user ? (
+                    <Navigate to="/dashboard" replace />
                   ) : (
                     <Navigate to="/login" replace />
                   )
                 } 
               />
               
-              {/* Default route */}
-              <Route 
-                path="/" 
-                element={
-                  <Navigate to={user ? "/dashboard" : "/login"} replace />
-                } 
-              />
-              
-              {/* Catch all route */}
+              {/* Catch all */}
               <Route 
                 path="*" 
                 element={
-                  <Navigate to={user ? "/dashboard" : "/login"} replace />
+                  loading ? (
+                    <LoadingScreen />
+                  ) : user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
                 } 
               />
-
-              <Route path="/admin" element={
-                <RouteGuard requireAdmin={true}>
-                  <UserManagement />
-                </RouteGuard>
-              } />
-
-              <Route path="/unauthorized" element={<Unauthorized />} />
             </Routes>
           </ErrorBoundary>
         </div>

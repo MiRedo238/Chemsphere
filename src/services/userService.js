@@ -200,6 +200,7 @@ export const userService = {
       throw error;
     }
   },
+
   // ===== USER DELETION MANAGEMENT =====
   async deleteUser(id) {
     try {
@@ -234,6 +235,42 @@ export const userService = {
       return true;
     } catch (error) {
       console.error('Error permanently deleting user:', error);
+      throw error;
+    }
+  },
+
+  // NEW: Complete user deletion from both Auth and Database
+  async deleteUserCompletely(id) {
+    try {
+      console.log('🗑️ Starting complete user deletion for:', id);
+      
+      // 1. First delete from Supabase Auth
+      const { error: authError } = await supabase.auth.admin.deleteUser(id);
+      
+      if (authError) {
+        console.error('❌ Auth deletion error:', authError);
+        // Even if auth deletion fails, try to delete from users table
+        console.log('🔄 Attempting to delete from users table anyway...');
+      } else {
+        console.log('✅ User deleted from Supabase Auth');
+      }
+      
+      // 2. Delete from users table
+      const { error: dbError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', id);
+      
+      if (dbError) {
+        console.error('❌ Database deletion error:', dbError);
+        throw dbError;
+      }
+      
+      console.log('✅ User deleted from users table');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Complete user deletion failed:', error);
       throw error;
     }
   },

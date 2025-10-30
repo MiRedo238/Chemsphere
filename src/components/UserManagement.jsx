@@ -132,8 +132,8 @@ const UserManagement = () => {
       setActionLoading(`delete-${userToDelete.id}`);
       setError('');
 
-      // Use permanent deletion instead of soft delete
-      await userService.permanentDeleteUser(userToDelete.id);
+      // Use complete deletion (both auth and database)
+      await userService.deleteUserCompletely(userToDelete.id);
 
       // Update local state
       setUsers(prev => prev.filter(user => user.id !== userToDelete.id));
@@ -147,10 +147,13 @@ const UserManagement = () => {
       setDeleteModalOpen(false);
       setUserToDelete(null);
       
-      alert(`User ${userToDelete.username} has been permanently deleted.`);
+      alert(`User ${userToDelete.username} has been permanently deleted from the system.`);
     } catch (err) {
       setError('Failed to delete user: ' + err.message);
       console.error('Delete user error:', err);
+      
+      // If deletion fails, reload users to ensure UI is in sync
+      await loadUsers();
     } finally {
       setActionLoading(null);
     }

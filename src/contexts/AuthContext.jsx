@@ -1,7 +1,6 @@
 // src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase/supabaseClient';
-import { userService } from '../services/userService';
 
 const AuthContext = createContext();
 
@@ -128,6 +127,7 @@ export const AuthProvider = ({ children }) => {
     const initializeAuth = async () => {
       try {
         console.log('🔄 Initializing auth...');
+        setLoading(true);
         
         // Get current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -168,6 +168,9 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
+        if (mounted) {
+          setError(error.message);
+        }
       } finally {
         if (mounted) {
           setLoading(false);
@@ -202,6 +205,7 @@ export const AuthProvider = ({ children }) => {
               setUserVerified(profile.verified);
               setUserActive(profile.active);
               setError(null);
+              setLoading(false);
             }
           } else {
             console.log('👤 Auth change - no user');
@@ -210,10 +214,12 @@ export const AuthProvider = ({ children }) => {
             setUserVerified(false);
             setUserActive(false);
             setError(null);
+            setLoading(false);
           }
         } catch (error) {
           console.error('Auth state change error:', error);
           setError(error.message);
+          setLoading(false);
         }
       }
     );
@@ -224,7 +230,7 @@ export const AuthProvider = ({ children }) => {
         console.warn('⚠️ Auth loading timeout - forcing loading to false');
         setLoading(false);
       }
-    }, 10000);
+    }, 5000); // Reduced timeout
 
     return () => {
       mounted = false;

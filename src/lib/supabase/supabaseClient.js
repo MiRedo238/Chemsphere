@@ -3,29 +3,59 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL 
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Configure Supabase with session persistence
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: localStorage,
+    storageKey: 'supabase.auth.token'
+  }
+})
 
-// Helper functions for common queries
+// Helper function to check if we have a valid session
+export const hasValidSession = async () => {
+  const { data: { session }, error } = await supabase.auth.getSession()
+  if (error) {
+    console.error('Error checking session:', error)
+    return false
+  }
+  return !!session
+}
+
+// Get current user with better error handling
 export const getCurrentUser = async () => {
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error) throw error
-  return user
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error) {
+      console.error('Error getting user:', error)
+      return null
+    }
+    return user
+  } catch (error) {
+    console.error('Exception getting user:', error)
+    return null
+  }
 }
 
 // In your supabaseClient.js
 export const getUserRole = async () => {
   try {
+    const user = await getCurrentUser()
+    if (!user) return 'user'
+    
     const { data, error } = await supabase
       .from('users')
       .select('role')
-      .eq('id', (await supabase.auth.getUser()).data.user?.id)
+      .eq('id', user.id)
       .single();
     
     if (error) throw error;
     return data?.role || 'user';
   } catch (error) {
     console.error('Error getting user role:', error);
-    return 'user'; // Default fallback
+    return 'user';
   }
 };
 

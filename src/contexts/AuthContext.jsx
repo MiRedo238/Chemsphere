@@ -1,7 +1,6 @@
 // src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase/supabaseClient';
-import { userService } from '../services/userService';
+import { supabase, checkAuthSession } from '../lib/supabase/supabaseClient';
 
 const AuthContext = createContext();
 
@@ -127,24 +126,13 @@ export const AuthProvider = ({ children }) => {
 
     const initializeAuth = async () => {
       try {
-        console.log('🔄 Initializing auth...');
+        console.log('🔄 Initializing auth with cookie session...');
         
-        // Get current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Check for existing session using cookie-based session
+        const session = await checkAuthSession();
         
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          if (mounted) {
-            setError(sessionError.message);
-            setLoading(false);
-          }
-          return;
-        }
-
-        console.log('📋 Session found:', session?.user?.email);
-
         if (session?.user && mounted) {
-          console.log('👤 User authenticated, ensuring in database...');
+          console.log('📋 Cookie session found:', session.user.email);
           
           // Ensure user exists in public.users table
           await ensureUserInDatabase(session.user);
@@ -160,7 +148,7 @@ export const AuthProvider = ({ children }) => {
             setUserActive(profile.active);
           }
         } else if (mounted) {
-          console.log('❌ No session found');
+          console.log('❌ No valid session found in cookies');
           setUser(null);
           setUserRole('user');
           setUserVerified(false);
@@ -168,6 +156,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
+        setError('Failed to initialize authentication');
       } finally {
         if (mounted) {
           setLoading(false);
@@ -233,18 +222,28 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  // Enhanced logout that clears cookies
   const logout = async () => {
     try {
       setLoading(true);
+      
+      // Clear Supabase session (this should clear the cookie)
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
+      // Force clear any remaining auth cookies
+      document.cookie = 'sb-auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'sb-access-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'sb-refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      
+      // Clear state
       setUser(null);
       setUserRole('user');
       setUserVerified(false);
       setUserActive(false);
       setError(null);
-      console.log('✅ Logout successful');
+      
+      console.log('✅ Logout successful - cookies cleared');
     } catch (err) {
       console.error('❌ Logout failed:', err);
       setError(err.message);
@@ -261,13 +260,18 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/#/auth/callback`
+          redirectTo: `${window.location.origin}/#/auth/callback`,
+          // Ensure OAuth flow uses cookies
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       });
       
       if (error) throw error;
       
-      console.log('✅ Google OAuth initiated');
+      console.log('✅ Google OAuth initiated with cookie session');
       return data;
     } catch (err) {
       console.error('❌ Google login failed:', err);

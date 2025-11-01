@@ -2,25 +2,34 @@ import { supabase } from '../lib/supabase/supabaseClient';
 
 export const logChemicalUsage = async (usageData) => {
   try {
-    // First, get the current chemical to check quantity
-    const { data: chemical, error: chemError } = await supabase
-      .from('chemicals')
-      .select('current_quantity')
-      .eq('id', usageData.chemical_id)
-      .single();
+    const { equipment_ids = [], chemical_usages = [], ...logData } = usageData;
+    
+    // Validate chemical quantities if we're using chemicals
+    if (chemical_usages && chemical_usages.length > 0) {
+      for (const usage of chemical_usages) {
+        const { data: chemical, error: chemError } = await supabase
+          .from('chemicals')
+          .select('current_quantity')
+          .eq('id', usage.chemical_id)
+          .single();
 
-    if (chemError) throw chemError;
+        if (chemError) throw chemError;
 
-    // Check if there's enough quantity
-    if (chemical.current_quantity < usageData.quantity) {
-      throw new Error(`Insufficient quantity. Available: ${chemical.current_quantity}`);
+        if (chemical.current_quantity < usage.quantity) {
+          throw new Error(`Insufficient quantity for chemical ${usage.chemical_id}. Available: ${chemical.current_quantity}`);
+        }
+      }
     }
 
-    // Insert the usage log - using 'usage_logs' table
-    const { data, error } = await supabase
-      .from('usage_logs') // Changed from 'chemical_usage' to 'usage_logs'
+    // Insert the main usage log
+    const { data: usageLog, error } = await supabase
+      .from('usage_logs')
       .insert([{
-        ...usageData,
+        user_id: logData.user_id,
+        user_name: logData.user_name,
+        date: logData.date,
+        notes: logData.notes,
+        location: logData.location,
         created_at: new Date().toISOString()
       }])
       .select()
@@ -28,67 +37,220 @@ export const logChemicalUsage = async (usageData) => {
 
     if (error) throw error;
 
-    // The trigger should automatically update the chemical quantity
-    // But let's verify it worked and update manually as backup
-    const { error: updateError } = await supabase
-      .from('chemicals')
-      .update({ 
-        current_quantity: chemical.current_quantity - usageData.quantity
-      })
-      .eq('id', usageData.chemical_id);
+    // Link equipment through junction table
+    if (equipment_ids && equipment_ids.length > 0) {
+      const equipmentLinks = equipment_ids.map(equipment_id => ({
+        usage_log_id: usageLog.id,
+        equipment_id: equipment_id
+      }));
 
-    if (updateError) throw updateError;
+      const { error: equipmentError } = await supabase
+        .from('usage_log_equipment')
+        .insert(equipmentLinks);
 
-    console.log('✅ Chemical usage logged and quantity updated');
-    return data;
+      if (equipmentError) throw equipmentError;
+    }
+
+    // Handle chemical usages through chemical_usage table
+    if (chemical_usages && chemical_usages.length > 0) {
+      const chemicalUsageEntries = chemical_usages.map(usage => ({
+        usage_log_id: usageLog.id,
+        chemical_id: usage.chemical_id,
+        quantity: usage.quantity,
+        unit: usage.unit,
+        opened: usage.opened || false,
+        remaining_amount: usage.remaining_amount
+      }));
+
+      const { error: chemicalUsageError } = await supabase
+        .from('chemical_usage')
+        .insert(chemicalUsageEntries);
+
+      if (chemicalUsageError) throw chemicalUsageError;
+
+      // Update chemical quantities for each chemical used
+      for (const usage of chemical_usages) {
+        const { data: chemical } = await supabase
+          .from('chemicals')
+          .select('current_quantity')
+          .eq('id', usage.chemical_id)
+          .single();
+
+        const { error: updateError } = await supabase
+          .from('chemicals')
+          .update({ 
+            current_quantity: chemical.current_quantity - usage.quantity
+          })
+          .eq('id', usage.chemical_id);
+
+        if (updateError) throw updateError;
+      }
+    }
+
+    console.log('✅ Usage log created with equipment and chemicals');
+    return usageLog;
   } catch (error) {
-    console.error('Error logging chemical usage:', error);
+    console.error('Error logging usage:', error);
     throw error;
   }
 };
 
+export const getChemicalUsageLogs = async (userId = null) => {
+  try {
+    // First get the main usage logs
+    let query = supabase
+      .from('usage_logs')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data: logs, error } = await query;
+    if (error) throw error;
+
+    // Manual joins for chemicals and equipment
+    const logsWithDetails = await Promise.all(
+      logs.map(async (log) => {
+        // Get chemical usage details
+        const { data: chemicalUsages } = await supabase
+          .from('chemical_usage')
+          .select('*')
+          .eq('usage_log_id', log.id);
+
+        // Get chemical details for each usage
+        const chemicalsWithDetails = await Promise.all(
+          (chemicalUsages || []).map(async (usage) => {
+            const { data: chemical } = await supabase
+              .from('chemicals')
+              .select('id, name, batch_number, brand, location, unit, current_quantity')
+              .eq('id', usage.chemical_id)
+              .single();
+
+            return {
+              ...usage,
+              chemical: chemical || null
+            };
+          })
+        );
+
+        // Get equipment details
+        const { data: equipmentLinks } = await supabase
+          .from('usage_log_equipment')
+          .select('equipment_id')
+          .eq('usage_log_id', log.id);
+
+        const equipmentWithDetails = await Promise.all(
+          (equipmentLinks || []).map(async (link) => {
+            const { data: equipment } = await supabase
+              .from('equipment')
+              .select('id, name, model, serial_id, status, location')
+              .eq('id', link.equipment_id)
+              .single();
+
+            return equipment;
+          })
+        );
+
+        // Filter out any null equipment (in case equipment was deleted)
+        const validEquipment = equipmentWithDetails.filter(eq => eq !== null);
+
+        return {
+          ...log,
+          chemicals: chemicalsWithDetails.map(usage => ({
+            id: usage.chemical_id,
+            chemical_id: usage.chemical_id,
+            chemical_name: usage.chemical?.name,
+            quantity: usage.quantity,
+            unit: usage.unit,
+            opened: usage.opened,
+            remaining_amount: usage.remaining_amount,
+            // Include chemical details for display
+            name: usage.chemical?.name,
+            batch_number: usage.chemical?.batch_number,
+            brand: usage.chemical?.brand,
+            location: usage.chemical?.location,
+            current_quantity: usage.chemical?.current_quantity
+          })),
+          equipment: validEquipment
+        };
+      })
+    );
+
+    return logsWithDetails;
+  } catch (error) {
+    console.error('Error fetching chemical usage logs:', error);
+    throw error;
+  }
+};
+
+// Update other functions to use manual joins
 export const getChemicalUsageHistory = async (chemicalId = null, startDate = null, endDate = null) => {
   try {
     let query = supabase
-      .from('usage_logs') // Changed from 'chemical_usage' to 'usage_logs'
-      .select(`
-        *,
-        chemicals (name, batch_number, brand)
-      `)
-      .order('date', { ascending: false }); // Changed from 'loggedAt' to 'date'
+      .from('chemical_usage')
+      .select('*')
+      .order('created_at', { ascending: false });
 
     if (chemicalId) {
-      query = query.eq('chemical_id', chemicalId); // Changed from 'chemicalId' to 'chemical_id'
+      query = query.eq('chemical_id', chemicalId);
     }
 
-    if (startDate) {
-      query = query.gte('date', startDate); // Changed from 'loggedAt' to 'date'
-    }
-
-    if (endDate) {
-      query = query.lte('date', endDate); // Changed from 'loggedAt' to 'date'
-    }
-
-    const { data, error } = await query;
-
+    const { data: chemicalUsages, error } = await query;
     if (error) throw error;
-    return data;
+
+    // Get usage log details for each chemical usage
+    const usageWithDetails = await Promise.all(
+      (chemicalUsages || []).map(async (usage) => {
+        const { data: usageLog } = await supabase
+          .from('usage_logs')
+          .select('*')
+          .eq('id', usage.usage_log_id)
+          .single();
+
+        const { data: chemical } = await supabase
+          .from('chemicals')
+          .select('name, batch_number, brand')
+          .eq('id', usage.chemical_id)
+          .single();
+
+        return {
+          ...usage,
+          usage_log: usageLog,
+          chemical: chemical
+        };
+      })
+    );
+
+    // Apply date filters
+    let filteredData = usageWithDetails;
+    if (startDate) {
+      filteredData = filteredData.filter(item => 
+        item.usage_log && new Date(item.usage_log.date) >= new Date(startDate)
+      );
+    }
+    if (endDate) {
+      filteredData = filteredData.filter(item => 
+        item.usage_log && new Date(item.usage_log.date) <= new Date(endDate)
+      );
+    }
+
+    return filteredData;
   } catch (error) {
     console.error('Error fetching chemical usage history:', error);
     throw error;
   }
 };
 
+// Keep other functions as they are, but they might need similar manual join updates
 export const getChemicalUsageByUser = async (userId) => {
   try {
     const { data, error } = await supabase
-      .from('usage_logs') // Changed from 'chemical_usage' to 'usage_logs'
-      .select(`
-        *,
-        chemicals (name, batch_number, brand)
-      `)
-      .eq('user_id', userId) // Changed from 'userId' to 'user_id'
-      .order('date', { ascending: false }); // Changed from 'loggedAt' to 'date'
+      .from('usage_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
 
     if (error) throw error;
     return data;
@@ -117,42 +279,33 @@ export const getChemicalUsageStats = async (chemicalId, timeframe = 'month') => 
         startDate = new Date(now.setMonth(now.getMonth() - 1));
     }
 
-    const { data, error } = await supabase
-      .from('usage_logs') // Changed from 'chemical_usage' to 'usage_logs'
-      .select('quantity, date') // Changed from 'quantityUsed, loggedAt' to 'quantity, date'
-      .eq('chemical_id', chemicalId) // Changed from 'chemicalId' to 'chemical_id'
-      .gte('date', startDate.toISOString().split('T')[0]) // Use date format for date column
-      .order('date');
+    const { data: chemicalUsages, error } = await supabase
+      .from('chemical_usage')
+      .select('quantity, created_at, usage_log_id')
+      .eq('chemical_id', chemicalId)
+      .gte('created_at', startDate.toISOString());
 
     if (error) throw error;
-    return data;
+
+    // Get dates from usage logs
+    const statsWithDates = await Promise.all(
+      (chemicalUsages || []).map(async (usage) => {
+        const { data: usageLog } = await supabase
+          .from('usage_logs')
+          .select('date')
+          .eq('id', usage.usage_log_id)
+          .single();
+
+        return {
+          quantity: usage.quantity,
+          date: usageLog?.date || usage.created_at
+        };
+      })
+    );
+
+    return statsWithDates.sort((a, b) => new Date(a.date) - new Date(b.date));
   } catch (error) {
     console.error('Error fetching chemical usage stats:', error);
-    throw error;
-  }
-};
-
-// New functions for the LogChemicalUsage component
-export const getChemicalUsageLogs = async (userId = null) => {
-  try {
-    let query = supabase
-      .from('usage_logs')
-      .select(`
-        *,
-        chemicals (name, batch_number, brand)
-      `)
-      .order('date', { ascending: false });
-
-    if (userId) {
-      query = query.eq('user_id', userId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error fetching chemical usage logs:', error);
     throw error;
   }
 };
@@ -179,16 +332,31 @@ export const updateChemicalUsageLog = async (logId, updateData) => {
 
 export const deleteChemicalUsageLog = async (logId) => {
   try {
-    // First get the log to know what quantity to restore
-    const { data: log, error: fetchError } = await supabase
-      .from('usage_logs')
+    // First get the chemical usage records to restore quantities
+    const { data: chemicalUsages, error: fetchUsagesError } = await supabase
+      .from('chemical_usage')
       .select('chemical_id, quantity')
-      .eq('id', logId)
-      .single();
+      .eq('usage_log_id', logId);
 
-    if (fetchError) throw fetchError;
+    if (fetchUsagesError) throw fetchUsagesError;
 
-    // Delete the usage log
+    // Delete related equipment links
+    const { error: equipmentError } = await supabase
+      .from('usage_log_equipment')
+      .delete()
+      .eq('usage_log_id', logId);
+
+    if (equipmentError) throw equipmentError;
+
+    // Delete chemical usage records
+    const { error: usageError } = await supabase
+      .from('chemical_usage')
+      .delete()
+      .eq('usage_log_id', logId);
+
+    if (usageError) throw usageError;
+
+    // Delete the main usage log
     const { error } = await supabase
       .from('usage_logs')
       .delete()
@@ -196,23 +364,25 @@ export const deleteChemicalUsageLog = async (logId) => {
 
     if (error) throw error;
 
-    // Restore the chemical quantity (since trigger might not handle this automatically)
-    const { data: chemical, error: chemError } = await supabase
-      .from('chemicals')
-      .select('current_quantity')
-      .eq('id', log.chemical_id)
-      .single();
+    // Restore chemical quantities
+    if (chemicalUsages && chemicalUsages.length > 0) {
+      for (const usage of chemicalUsages) {
+        const { data: chemical } = await supabase
+          .from('chemicals')
+          .select('current_quantity')
+          .eq('id', usage.chemical_id)
+          .single();
 
-    if (chemError) throw chemError;
+        const { error: updateError } = await supabase
+          .from('chemicals')
+          .update({ 
+            current_quantity: chemical.current_quantity + usage.quantity
+          })
+          .eq('id', usage.chemical_id);
 
-    const { error: updateError } = await supabase
-      .from('chemicals')
-      .update({ 
-        current_quantity: chemical.current_quantity + log.quantity
-      })
-      .eq('id', log.chemical_id);
-
-    if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      }
+    }
 
     return true;
   } catch (error) {

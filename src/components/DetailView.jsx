@@ -1,6 +1,6 @@
 // src/components/DetailView.jsx
 import React, { useState, useEffect, useContext } from 'react';
-import { ChevronLeft, Edit, Trash2, User, MapPin, Clock, Microscope } from 'lucide-react';
+import { ChevronLeft, Edit, Trash2, User, MapPin, Clock, Microscope, StickyNote } from 'lucide-react';
 import { safetyColors, statusColors, ghsSymbols } from '../utils/data';
 import { formatDate, normalizeGhsSymbols } from '../utils/helpers';
 import { 
@@ -8,8 +8,8 @@ import {
   deleteChemical as apiDeleteChemical, 
   updateEquipment as apiUpdateEquipment, 
   deleteEquipment as apiDeleteEquipment,
-  getChemicalUsageLogs
 } from '../services/api';
+import { getChemicalUsageLogs } from '../services/usageLogService';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 import { supabase } from '../lib/supabase/supabaseClient';
 
@@ -126,26 +126,109 @@ const DetailView = ({
     );
   };
 
-  // Fetch usage logs for chemical
+  // Fetch usage logs for chemical using the correct approach from usageLogService
   const fetchChemicalUsageLogs = async (chemicalId) => {
     try {
       console.log('🔍 Fetching usage logs for chemical:', chemicalId);
       
-      const { data, error } = await supabase
-        .from('usage_logs')
+      // Get chemical usage records from chemical_usage table
+      const { data: chemicalUsages, error: usageError } = await supabase
+        .from('chemical_usage')
         .select('*')
-        .eq('chemical_id', chemicalId)
-        .order('date', { ascending: false });
+        .eq('chemical_id', chemicalId);
 
-      if (error) {
-        console.error('Error fetching usage logs:', error);
-        throw error;
-      }
+      if (usageError) throw usageError;
 
-      console.log('✅ Usage logs fetched:', data);
-      return data || [];
+      // Get usage log details for each chemical usage
+      const logsWithDetails = await Promise.all(
+        (chemicalUsages || []).map(async (usage) => {
+          const { data: usageLog } = await supabase
+            .from('usage_logs')
+            .select('*')
+            .eq('id', usage.usage_log_id)
+            .single();
+
+          return {
+            ...usage,
+            ...usageLog, // Merge usage log data
+            quantity: usage.quantity,
+            unit: usage.unit,
+            opened: usage.opened,
+            remaining_amount: usage.remaining_amount
+          };
+        })
+      );
+
+      console.log('✅ Chemical usage logs fetched:', logsWithDetails);
+      return logsWithDetails || [];
     } catch (error) {
-      console.error('Failed to fetch usage logs:', error);
+      console.error('Failed to fetch chemical usage logs:', error);
+      return [];
+    }
+  };
+
+  // Fetch equipment usage logs with proper data structure
+  const fetchEquipmentUsageLogs = async (equipmentId) => {
+    try {
+      console.log('🔍 Fetching usage logs for equipment:', equipmentId);
+      
+      // Get equipment usage records from usage_log_equipment table
+      const { data: equipmentLinks, error: linkError } = await supabase
+        .from('usage_log_equipment')
+        .select('*')
+        .eq('equipment_id', equipmentId);
+
+      if (linkError) throw linkError;
+
+      // Get usage log details for each equipment usage
+      const logsWithDetails = await Promise.all(
+        (equipmentLinks || []).map(async (link) => {
+          const { data: usageLog } = await supabase
+            .from('usage_logs')
+            .select('*')
+            .eq('id', link.usage_log_id)
+            .single();
+
+          if (!usageLog) return null;
+
+          // For equipment, we also want to get any chemical usage in the same log to show context
+          const { data: chemicalUsages } = await supabase
+            .from('chemical_usage')
+            .select('chemical_id, quantity, unit')
+            .eq('usage_log_id', link.usage_log_id);
+
+          // Get chemical names for the usage
+          const chemicalsWithDetails = await Promise.all(
+            (chemicalUsages || []).map(async (usage) => {
+              const { data: chemical } = await supabase
+                .from('chemicals')
+                .select('name')
+                .eq('id', usage.chemical_id)
+                .single();
+
+              return {
+                ...usage,
+                chemical_name: chemical?.name || 'Unknown Chemical'
+              };
+            })
+          );
+
+          return {
+            ...usageLog,
+            equipment_usage_id: link.id,
+            chemicals_used: chemicalsWithDetails
+          };
+        })
+      );
+
+      // Filter out null values and sort by date
+      const validLogs = logsWithDetails.filter(log => log !== null)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      console.log('✅ Equipment usage logs fetched:', validLogs);
+      return validLogs;
+    } catch (error) {
+      console.error('Failed to fetch equipment usage logs:', error);
       return [];
     }
   };
@@ -155,14 +238,17 @@ const DetailView = ({
     if (selectedItem) {
       setEditForm(initializeEditForm(selectedItem));
       
-      // Fetch usage logs when chemical is selected
-      if (isChemical) {
-        const loadUsageLogs = async () => {
-          const logs = await fetchChemicalUsageLogs(selectedItem.id);
-          setUsageLogs(logs);
-        };
-        loadUsageLogs();
-      }
+      // Fetch usage logs when item is selected
+      const loadUsageLogs = async () => {
+        let logs = [];
+        if (isChemical) {
+          logs = await fetchChemicalUsageLogs(selectedItem.id);
+        } else {
+          logs = await fetchEquipmentUsageLogs(selectedItem.id);
+        }
+        setUsageLogs(logs);
+      };
+      loadUsageLogs();
     }
   }, [selectedItem]);
 
@@ -593,53 +679,73 @@ const DetailView = ({
   };
 
   const renderUsageLog = () => {
-    const title = isChemical ? 'Usage Log' : 'Maintenance Log';
-    const emptyMessage = isChemical ? 'No usage recorded' : 'No maintenance recorded';
-
-    // Use fetched usage logs for chemicals, fallback to item data for equipment
-    const logs = isChemical ? usageLogs : (selectedItem?.maintenance_log || []);
+    const title = isChemical ? 'Usage Log' : 'Usage History';
+    const emptyMessage = isChemical ? 'No usage recorded' : 'No usage recorded';
 
     return (
       <div>
         <h3 className="detail-section-title">{title}</h3>
         <div className="log-container">
-          {logs?.map((log, index) => (
+          {usageLogs?.map((log, index) => (
             <div key={index} className="log-item">
               <div className="log-header">
                 <div>
                   <p className="log-user">
-                    {isChemical ? log.user_name : log.action}
+                    <User size={15} className="inline mr-1" />
+                    {log.user_name || 'Unknown User'}
                   </p>
-                  {isChemical && (
-                    <p className="log-location">
-                      <MapPin size={12} className="inline mr-1" />
-                      {log.location || 'N/A'}
-                    </p>
-                  )}
-                  {!isChemical && (
-                    <p className="log-location">{log.user_name}</p>
-                  )}
+                  <p className="log-location">
+                    <MapPin size={15} className="inline mr-1" />
+                    {log.location || 'N/A'}
+                  </p>
                 </div>
                 <div className="text-right">
-                  {isChemical && (
-                    <p className="log-quantity">{log.quantity} units</p>
-                  )}
                   <p className="log-date">
-                    <Clock size={12} className="inline mr-1" />
+                    <Clock size={15} className="inline mr-1" />
                     {formatDate(log.date)}
                   </p>
                 </div>
               </div>
-              {isChemical && log.opened && <span className="log-tag">Opened</span>}
-              {isChemical && log.remaining_amount && (
-                <span className="log-tag">{log.remaining_amount}mL remaining</span>
+              
+              {/* Chemical-specific details */}
+              {isChemical && (
+                <>
+                  <div className="log-details">
+                    <span className="log-quantity">
+                      Quantity: {log.quantity} ({log.unit || 'units'} each)
+                    </span>
+                    {log.opened && <span className="log-tag">Opened</span>}
+                    {log.remaining_amount && (
+                      <span className="log-tag">{log.remaining_amount} remaining</span>
+                    )}
+                  </div>
+                </>
               )}
+              
+              {/* Equipment-specific details - show chemicals used in the same session */}
+              {!isChemical && log.chemicals_used && log.chemicals_used.length > 0 && (
+                <div className="log-details">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Chemicals used:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {log.chemicals_used.map((chemical, chemIndex) => (
+                      <span key={chemIndex} className="chemical-tag">
+                        {chemical.chemical_name} ({chemical.quantity} {chemical.unit})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Notes for both chemical and equipment */}
               {log.notes && (
-                <p className="text-xs text-gray-500 mt-1">{log.notes}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  <StickyNote size={15} className="inline mr-1" />
+                  {log.notes}
+                </p>
               )}
             </div>
           ))}
-          {(!logs || logs.length === 0) && (
+          {(!usageLogs || usageLogs.length === 0) && (
             <p className="no-data">{emptyMessage}</p>
           )}
         </div>

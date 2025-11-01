@@ -3947,3 +3947,566 @@ body {
   margin-top: 1rem;
   border-radius: 0 0 0.5rem 0.5rem;
 }
+
+/* Enhanced Usage Log Styles */
+.log-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.log-item {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e0e0e0;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.log-item:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+  border-color: #1e88e5;
+}
+
+.log-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+  border-radius: 2px 0 0 2px;
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.log-user {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.log-location {
+  font-size: 14px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.log-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e88e5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  background: #e3f2fd;
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+.log-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.log-quantity {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  padding: 6px 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.log-tag {
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  padding: 4px 10px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chemical-tag {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e88e5;
+  padding: 4px 10px;
+  background: #e3f2fd;
+  border-radius: 6px;
+  border: 1px solid #bbdefb;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Status indicators for different log types */
+.log-item[data-log-type="chemical"]::before {
+  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+}
+
+.log-item[data-log-type="equipment"]::before {
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+}
+
+.log-item[data-log-type="maintenance"]::before {
+  background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+}
+
+/* Responsive Design for Logs */
+@media (max-width: 768px) {
+  .log-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  
+  .log-date {
+    align-self: flex-start;
+  }
+  
+  .log-details {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .log-item {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .log-container {
+    gap: 12px;
+  }
+  
+  .log-item {
+    padding: 14px;
+    border-radius: 8px;
+  }
+  
+  .log-user {
+    font-size: 15px;
+  }
+  
+  .log-location,
+  .log-date {
+    font-size: 13px;
+  }
+  
+  .log-quantity {
+    font-size: 14px;
+  }
+}
+
+/* Animation for new log entries */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.log-item {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Empty state styling */
+.no-data {
+  text-align: center;
+  color: #666;
+  padding: 60px 20px;
+  font-style: italic;
+  background: white;
+  border-radius: 12px;
+  border: 2px dashed #e0e0e0;
+}
+
+/* Loading state for logs */
+.log-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Chemical-specific log enhancements */
+.chemical-log .log-details {
+  background: #e8f5e8;
+  border: 1px solid #c8e6c9;
+}
+
+/* Equipment-specific log enhancements */
+.equipment-log .log-details {
+  background: #fff3e0;
+  border: 1px solid #ffe0b2;
+}
+
+/* Usage Log List Item */
+.usage-log-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: white;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  cursor: pointer;
+  gap: 20px;
+}
+
+.usage-log-item:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  background: #f8f9fa;
+}
+
+.usage-log-item:active {
+  transform: translateY(0);
+}
+
+/* Left side - Main content */
+.usage-log-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.usage-log-user {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.usage-log-location {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.usage-log-location svg {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.usage-log-chemicals,
+.usage-log-equipment {
+  display: flex;
+  align-items: flex-start;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.usage-log-chemicals svg,
+.usage-log-equipment svg {
+  margin-right: 6px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.usage-log-chemicals strong,
+.usage-log-equipment strong {
+  font-weight: 600;
+  color: #333;
+}
+
+.usage-log-notes {
+  font-size: 14px;
+  color: #666;
+  margin-top: 8px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.usage-log-notes strong {
+  font-weight: 600;
+  color: #333;
+}
+
+/* Right side - Date and time */
+.usage-log-datetime {
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.usage-log-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.usage-log-time {
+  font-size: 14px;
+  color: #666;
+}
+
+/* ========================================== */
+/* Usage Log Detail View Styles */
+/* ========================================== */
+
+/* Chemical Entry Card */
+.usage-detail-chemical-card {
+  background: white;
+  border: 2px solid #e8f5e9;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s;
+}
+
+.usage-detail-chemical-card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  border-color: #c8e6c9;
+}
+
+.usage-detail-chemical-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.usage-detail-chemical-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2e7d32;
+  margin-bottom: 8px;
+}
+
+.usage-detail-chemical-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-detail-chemical-detail {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.usage-detail-chemical-detail strong {
+  font-weight: 600;
+  color: #333;
+  margin-right: 4px;
+}
+
+.usage-detail-chemical-badge {
+  background: #e3f2fd;
+  color: #1565c0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+/* Equipment Entry Card */
+.usage-detail-equipment-card {
+  background: white;
+  border: 2px solid #fff3e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s;
+}
+
+.usage-detail-equipment-card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  border-color: #ffe0b2;
+}
+
+.usage-detail-equipment-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ef6c00;
+  margin-bottom: 8px;
+}
+
+.usage-detail-equipment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-detail-equipment-detail {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+}
+
+.usage-detail-equipment-detail strong {
+  font-weight: 600;
+  color: #333;
+  margin-right: 4px;
+}
+
+.usage-detail-equipment-detail svg {
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+/* Empty state for chemicals and equipment */
+.usage-detail-empty {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 32px 20px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 2px dashed #e0e0e0;
+}
+
+/* Section dividers */
+.usage-detail-section {
+  margin-bottom: 32px;
+}
+
+.usage-detail-section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+}
+
+.usage-detail-section-title svg {
+  margin-right: 8px;
+}
+
+/* Notes section */
+.usage-detail-notes {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 120px;
+  color: #666;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.usage-detail-notes-empty {
+  color: #999;
+  font-style: italic;
+}
+
+/* ========================================== */
+/* Responsive Design for Usage Logs */
+/* ========================================== */
+
+@media (max-width: 768px) {
+  .usage-log-item {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .usage-log-datetime {
+    align-self: flex-start;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
+  }
+  
+  .usage-log-date {
+    margin-bottom: 0;
+  }
+  
+  .usage-detail-chemical-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .usage-detail-chemical-badge {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .usage-log-item {
+    padding: 12px 16px;
+  }
+  
+  .usage-log-user {
+    font-size: 16px;
+  }
+  
+  .usage-log-location,
+  .usage-log-chemicals,
+  .usage-log-equipment,
+  .usage-log-notes {
+    font-size: 13px;
+  }
+  
+  .usage-detail-chemical-card,
+  .usage-detail-equipment-card {
+    padding: 12px;
+  }
+  
+  .usage-detail-chemical-name,
+  .usage-detail-equipment-name {
+    font-size: 16px;
+  }
+  
+  .usage-detail-chemical-detail,
+  .usage-detail-equipment-detail {
+    font-size: 13px;
+  }
+}

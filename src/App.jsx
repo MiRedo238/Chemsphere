@@ -10,6 +10,7 @@ import ChemicalsList from './components/ChemicalsList';
 import EquipmentList from './components/EquipmentList';
 import DetailView from './components/DetailView';
 import LogChemicalUsage from './components/LogChemicalUsage';
+import LogUsageDetailView from './components/LogUsageDetailView'; // Add this import
 import AuditLogs from './components/AuditLogs';
 import ExpiredChemicals from './components/ExpiredChemicals';
 import './App.css';
@@ -139,6 +140,7 @@ function DashboardContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedLog, setSelectedLog] = useState(null); // Add state for selected log
   const { user, userRole } = useAuth();
 
   const { 
@@ -180,9 +182,17 @@ function DashboardContent() {
     setCurrentView('detail');
   };
 
+  // Add function to handle log detail view
+  const handleViewLogDetail = (log, fromView = 'log-usage') => {
+    setSelectedLog(log);
+    setPreviousView(fromView);
+    setCurrentView('log-detail');
+  };
+
   const handleBack = () => {
     setCurrentView(previousView);
     setSelectedItem(null);
+    setSelectedLog(null); // Clear selected log when going back
   };
 
   const updateChemicals = (updatedChemicals) => {
@@ -199,6 +209,8 @@ function DashboardContent() {
 
   const refreshData = async () => {
     console.log('Refreshing data...');
+    if (fetchChemicals) await fetchChemicals();
+    if (fetchEquipment) await fetchEquipment();
   };
 
   const handleSetCurrentView = (view) => {
@@ -209,6 +221,7 @@ function DashboardContent() {
       'chemicals': 'chemicals',
       'equipment': 'equipment',
       'log-usage': 'usage',
+      'log-detail': 'usage', // Add mapping for log detail view
       'audit-logs': 'audit',
       'expired-chemicals': 'expired',
       'users': 'users'
@@ -282,6 +295,17 @@ function DashboardContent() {
             addAuditLog={addAuditLog}
             userRole={userRole}
             currentUser={{ name: 'Current User' }}
+            refreshData={refreshData}
+            onViewLogDetail={handleViewLogDetail} // Pass the handler
+          />
+        );
+
+      case 'log-detail': // Add this case for log detail view
+        return (
+          <LogUsageDetailView
+            selectedLog={selectedLog}
+            setCurrentView={handleSetCurrentView}
+            userRole={userRole}
             refreshData={refreshData}
           />
         );

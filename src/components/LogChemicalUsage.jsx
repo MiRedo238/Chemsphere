@@ -1,690 +1,402 @@
 // src/components/LogChemicalUsage.jsx
-import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { 
-  ChevronLeft, 
-  FlaskConical, 
-  User, 
-  Calendar, 
-  Edit2, 
-  Save, 
-  X, 
-  Plus, 
-  Trash2 
-} from 'lucide-react';
-import Autocomplete from './Autocomplete';
-import { 
-  logChemicalUsage, 
-  getChemicalUsageLogs, 
-  updateChemicalUsageLog, 
-  deleteChemicalUsageLog 
-} from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState, useEffect, useContext } from 'react';
+import { Search, Plus, Download, Upload, ArrowUp, ArrowDown, Calendar, User, FlaskConical, Microscope, MapPin } from 'lucide-react';
 import { DatabaseContext } from '../contexts/DatabaseContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getChemicalUsageLogs } from '../services/usageLogService';
+import AddLogEntry from './AddLogEntry';
+import Modal from './Modal';
+import { exportToCSV } from '../utils/helpers';
 
-// Helper function to get user display name (same as in Sidebar)
-const getUserDisplayName = (user) => {
-  if (!user) return '';
-  
-  // Try to get name from user_metadata (Supabase Auth)
-  const userName = user.user_metadata?.name || 
-                  user.user_metadata?.full_name || 
-                  user.user_metadata?.username;
-  
-  if (userName) {
-    return userName;
-  }
-  
-  // Fallback: use email username with nice formatting
-  if (user.email) {
-    const emailUsername = user.email.split('@')[0];
-    const formattedUsername = emailUsername
-      .split(/[._]/)
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-      .join(' ');
-    
-    return formattedUsername;
-  }
-  
-  return '';
-};
-
-// Constants
-const TABS = {
-  LOG: 'log',
-  EDIT: 'edit'
-};
-
-const INITIAL_CHEMICAL_USAGE = {
-  chemicalId: '', 
-  quantity: '', 
-  opened: false, 
-  remainingAmount: '' 
-};
-
-const LogChemicalUsage = ({ 
-  setCurrentView, 
-  addAuditLog, 
-  userRole,
-  currentUser,
-  refreshData
-}) => {
-  // Hooks
-  const { chemicals } = useContext(DatabaseContext);
+const LogChemicalUsage = ({ setCurrentView, addAuditLog, userRole, refreshData, onViewLogDetail }) => {
+  const { chemicals, equipment } = useContext(DatabaseContext);
   const { user: authUser } = useAuth();
   
   // State
-  const [selectedChemicals, setSelectedChemicals] = useState([]);
-  const [user, setUser] = useState(getUserDisplayName(authUser) || getUserDisplayName(currentUser) || '');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-  const [activeTab, setActiveTab] = useState(TABS.LOG);
-  const [editingLog, setEditingLog] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [userLogs, setUserLogs] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [sortDirection, setSortDirection] = useState('desc');
   const [loading, setLoading] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
 
-  // Derived state
-  const availableChemicals = chemicals.filter(c => c.current_quantity > 0);
-  const allUsers = [...new Set([
-    getUserDisplayName(authUser),
-    getUserDisplayName(currentUser),
-    ...chemicals.flatMap(c => c.usage_log ? c.usage_log.map(u => u.user_name) : [])
-  ].filter(Boolean))].map(user => ({ user }));
-
-  // Effects
-  useEffect(() => {
-    if (activeTab === TABS.EDIT && authUser) {
-      fetchUserLogs();
-    }
-  }, [activeTab, authUser]);
-
-  // Update user name when authUser or currentUser changes
-  useEffect(() => {
-    const userName = getUserDisplayName(authUser) || getUserDisplayName(currentUser) || '';
-    setUser(userName);
-  }, [authUser, currentUser]);
-
-  // API Calls
-  const fetchUserLogs = async () => {
+  // Fetch all logs
+  const fetchAllLogs = async () => {
     try {
       setLoading(true);
-      const chemicalLogs = await getChemicalUsageLogs(authUser.id);
-      const formattedLogs = chemicalLogs.map(log => ({
-        ...log,
+      const allLogs = await getChemicalUsageLogs();
+      
+      const formattedLogs = allLogs.map(log => ({
         id: log.id,
-        type: 'chemical',
-        itemName: log.chemical_name,
-        itemId: log.chemical_id
+        type: 'usage_log',
+        user_id: log.user_id,
+        user_name: log.user_name,
+        userName: log.user_name || 'Unknown User',
+        date: log.date,
+        notes: log.notes,
+        location: log.location,
+        created_at: log.created_at,
+        updated_at: log.updated_at,
+        equipment: log.equipment || [],
+        chemicals: log.chemicals || []
       })).sort((a, b) => new Date(b.date) - new Date(a.date));
       
-      setUserLogs(formattedLogs);
+      setLogs(formattedLogs);
     } catch (error) {
-      console.error('Error fetching user logs:', error);
+      console.error('Error fetching usage logs:', error);
       alert('Failed to fetch usage logs');
     } finally {
       setLoading(false);
     }
   };
 
-  // Chemical Usage Management
-  const addChemicalUsage = () => {
-    setSelectedChemicals(prev => [...prev, { ...INITIAL_CHEMICAL_USAGE }]);
+  useEffect(() => {
+    fetchAllLogs();
+  }, []);
+
+  // Filter and sort logs
+  const filteredLogs = logs.filter(log => {
+    const matchesSearch = searchTerm === '' || 
+      log.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.chemicals?.some(chem => 
+        chem.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        chem.chemical_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      ) ||
+      log.equipment?.some(eq => 
+        eq.name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+    const logDate = new Date(log.date);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const lastWeek = new Date(today);
+    lastWeek.setDate(lastWeek.getDate() - 7);
+
+    const matchesDate = dateFilter === 'all' ||
+      (dateFilter === 'today' && logDate.toDateString() === today.toDateString()) ||
+      (dateFilter === 'yesterday' && logDate.toDateString() === yesterday.toDateString()) ||
+      (dateFilter === 'last-week' && logDate >= lastWeek && logDate <= today);
+
+    return matchesSearch && matchesDate;
+  });
+
+  const sortedLogs = [...filteredLogs].sort((a, b) => {
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
+    return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+  });
+
+  // Search with autocomplete
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    if (value.length > 2) {
+      const suggestions = logs.filter(log => 
+        log.userName?.toLowerCase().includes(value.toLowerCase()) ||
+        log.chemicals?.some(chem => 
+          chem.name?.toLowerCase().includes(value.toLowerCase()) ||
+          chem.chemical_name?.toLowerCase().includes(value.toLowerCase())
+        )
+      ).slice(0, 5);
+      
+      setAutocompleteSuggestions(suggestions);
+      setShowAutocomplete(true);
+    } else {
+      setShowAutocomplete(false);
+    }
   };
 
-  const removeChemicalUsage = (index) => {
-    setSelectedChemicals(prev => prev.filter((_, i) => i !== index));
+  const selectAutocomplete = (log) => {
+    setSearchTerm(log.userName || '');
+    setAutocompleteSuggestions([]);
+    setShowAutocomplete(false);
   };
 
-  const updateChemicalUsage = (index, field, value) => {
-    setSelectedChemicals(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
+  // Export functionality
+  const handleExport = () => {
+    const exportData = sortedLogs.map(log => ({
+      'Log ID': log.id,
+      'User': log.userName,
+      'Date': new Date(log.date).toLocaleDateString(),
+      'Time': new Date(log.date).toLocaleTimeString(),
+      'Location': log.location || '',
+      'Notes': log.notes || '',
+      'Chemicals': log.chemicals?.map(chem => 
+        `${chem.name || chem.chemical_name} (${chem.quantity}${chem.unit || ''})`
+      ).join('; ') || '',
+      'Equipment': log.equipment?.map(eq => eq.name).join('; ') || '',
+      'Created At': new Date(log.created_at).toLocaleString()
+    }));
+    
+    exportToCSV(exportData, 'chemical_usage_logs');
+    addAuditLog({
+      type: 'usage_log',
+      action: 'export',
+      itemName: 'Usage Logs',
+      user: userRole,
+      timestamp: new Date().toISOString(),
+      details: { count: sortedLogs.length }
     });
   };
 
-  // Form Handling
-  const validateForm = () => {
-    if (!user.trim()) {
-      alert('Please enter a user name');
-      return false;
-    }
-    
-    if (selectedChemicals.length === 0) {
-      alert('Please add at least one chemical');
-      return false;
-    }
-
-    for (const chemUsage of selectedChemicals) {
-      if (!chemUsage.chemicalId) {
-        alert('Please select a chemical for all entries');
-        return false;
-      }
+  // Handle adding new log
+  const handleAddLog = async (newLog) => {
+    try {
+      await refreshData();
+      await fetchAllLogs();
       
-      if (!chemUsage.quantity || parseInt(chemUsage.quantity) <= 0) {
-        alert('Please enter a valid quantity for all chemicals');
-        return false;
-      }
-
-      const selectedChemical = chemicals.find(c => c.id === chemUsage.chemicalId);
-      if (selectedChemical && selectedChemical.current_quantity < parseInt(chemUsage.quantity)) {
-        alert(`Insufficient quantity for ${selectedChemical.name}. Available: ${selectedChemical.current_quantity}`);
-        return false;
-      }
+      addAuditLog({
+        type: 'usage_log',
+        action: 'add',
+        itemName: 'Usage Log',
+        user: userRole,
+        timestamp: new Date().toISOString(),
+        details: {
+          user: newLog.user_name,
+          chemicals: newLog.chemicals?.length || 0,
+          equipment: newLog.equipment?.length || 0
+        }
+      });
+      
+      setShowAddModal(false);
+    } catch (error) {
+      console.error('Failed to process new log:', error);
     }
-
-    return true;
   };
 
-  const prepareChemicalData = (chemUsage) => {
-    const selectedChemical = chemicals.find(c => c.id === chemUsage.chemicalId);
-    
+  // Handle card click to view details
+  const handleLogClick = (log) => {
+    if (onViewLogDetail) {
+      onViewLogDetail(log, 'log-usage');
+    } else {
+      console.warn('onViewLogDetail not provided, using setCurrentView fallback');
+      setCurrentView('log-detail', log);
+    }
+  };
+
+  // Format date for display
+  const formatDateTime = (dateString) => {
+    const date = new Date(dateString);
     return {
-      chemical_id: chemUsage.chemicalId,
-      user_id: authUser?.id || null,
-      user_name: user,
-      date,
-      quantity: parseInt(chemUsage.quantity),
-      notes: notes || null,
-      opened: chemUsage.opened || false,
-      remaining_amount: chemUsage.opened && chemUsage.remainingAmount ? 
-        parseFloat(chemUsage.remainingAmount) : null
+      date: date.toLocaleDateString(),
+      time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
   };
 
-  const cleanData = (data) => {
-    const cleaned = {};
-    Object.keys(data).forEach(key => {
-      const value = data[key];
-      cleaned[key] = (value === undefined || value === '') ? null : value;
-    });
-    return cleaned;
+  // Get chemical name safely
+  const getChemicalName = (chem) => {
+    return chem.name || chem.chemical_name || 'Unknown Chemical';
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-
-    try {
-      setLoading(true);
-      
-      for (const chemUsage of selectedChemicals) {
-        const chemicalData = prepareChemicalData(chemUsage);
-        const cleanChemicalData = cleanData(chemicalData);
-        
-        await logChemicalUsage(cleanChemicalData);
-        
-        const selectedChemical = chemicals.find(c => c.id === chemUsage.chemicalId);
-        addAuditLog({
-          type: 'chemical',
-          action: 'usage',
-          itemName: selectedChemical?.name || 'Unknown Chemical',
-          user: userRole,
-          timestamp: new Date().toISOString(),
-          details: {
-            quantity: parseInt(chemUsage.quantity),
-            user,
-            opened: chemUsage.opened,
-            remainingAmount: chemUsage.remainingAmount
-          }
-        });
-      }
-
-      await refreshData();
-      resetForm();
-      alert('Chemical usage logged successfully!');
-    } catch (error) {
-      console.error('Error logging usage:', error);
-      alert('Failed to log usage. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+  // Get equipment name safely
+  const getEquipmentName = (eq) => {
+    return eq.name || 'Unknown Equipment';
   };
 
-  const resetForm = () => {
-    setSelectedChemicals([]);
-    setUser(getUserDisplayName(authUser) || getUserDisplayName(currentUser) || '');
-    setDate(new Date().toISOString().split('T')[0]);
-    setNotes('');
-  };
-
-  // Log Management
-  const startEditing = (log) => {
-    setEditingLog(log.id);
-    setEditForm({
-      quantity: log.quantity || '',
-      notes: log.notes || '',
-      opened: log.opened || false,
-      remaining_amount: log.remaining_amount || ''
-    });
-  };
-
-  const cancelEditing = () => {
-    setEditingLog(null);
-    setEditForm({});
-  };
-
-  const saveEdit = async (log) => {
-    try {
-      setLoading(true);
-      
-      const updateData = {
-        quantity: parseInt(editForm.quantity),
-        notes: editForm.notes || null,
-        opened: editForm.opened || false,
-        remaining_amount: editForm.opened && editForm.remaining_amount ? 
-          parseFloat(editForm.remaining_amount) : null
-      };
-
-      Object.keys(updateData).forEach(key => {
-        if (updateData[key] === undefined || updateData[key] === '') {
-          updateData[key] = null;
-        }
-      });
-
-      await updateChemicalUsageLog(log.id, updateData);
-
-      addAuditLog({
-        type: 'chemical',
-        action: 'update',
-        itemName: log.itemName,
-        user: userRole,
-        timestamp: new Date().toISOString(),
-        details: {
-          quantity: parseInt(editForm.quantity),
-          opened: editForm.opened,
-          remaining_amount: editForm.remaining_amount
-        }
-      });
-
-      await refreshData();
-      await fetchUserLogs();
-      setEditingLog(null);
-      setEditForm({});
-    } catch (error) {
-      console.error('Error updating log:', error);
-      alert('Failed to update log. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteLog = async (log) => {
-    if (!window.confirm('Are you sure you want to delete this log entry?')) return;
-
-    try {
-      setLoading(true);
-      await deleteChemicalUsageLog(log.id);
-      
-      addAuditLog({
-        type: 'chemical',
-        action: 'delete',
-        itemName: log.itemName,
-        user: userRole,
-        timestamp: new Date().toISOString(),
-        details: {
-          quantity: log.quantity,
-          date: log.date
-        }
-      });
-      
-      await refreshData();
-      await fetchUserLogs();
-    } catch (error) {
-      console.error('Error deleting log:', error);
-      alert('Failed to delete log. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Render Components (remain the same as original)
-  const renderTabNavigation = () => (
-    <div className="flex border-b border-gray-200 mb-6">
-      <button
-        className={`px-6 py-3 font-medium ${activeTab === TABS.LOG 
-          ? 'border-b-2 border-blue-500 text-blue-600' 
-          : 'text-gray-500 hover:text-gray-700'}`}
-        onClick={() => setActiveTab(TABS.LOG)}
-        disabled={loading}
-      >
-        New Log Entry
-      </button>
-      <button
-        className={`px-6 py-3 font-medium ${activeTab === TABS.EDIT 
-          ? 'border-b-2 border-blue-500 text-blue-600' 
-          : 'text-gray-500 hover:text-gray-700'}`}
-        onClick={() => setActiveTab(TABS.EDIT)}
-        disabled={loading}
-      >
-        My Logs
-      </button>
-    </div>
-  );
-
-  const renderBasicInformation = () => (
-    <div className="bg-gray-50 p-4 rounded-lg">
-      <h3 className="font-medium mb-4">Basic Information</h3>
-      <div className="form-grid">
-        <div className="form-group">
-          <label className="form-label">
-            <User className="inline mr-1" size={16} />
-            User
-          </label>
-          <Autocomplete
-            value={user}
-            onChange={setUser}
-            suggestions={allUsers}
-            placeholder="Enter user name"
-            onSelect={(item) => setUser(item.user)}
-            field="user"
-            disabled={loading}
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label">
-            <Calendar className="inline mr-1" size={16} />
-            Date
-          </label>
-          <input
-            type="date"
-            className="form-input"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderChemicalSelection = (chemUsage, index) => {
-    const selectedChem = chemicals.find(c => c.id === chemUsage.chemicalId);
+  // Render log card
+  const renderLogCard = (log) => {
+    const { date, time } = formatDateTime(log.date);
     
     return (
-      <div key={index} className="p-4 bg-white rounded border mb-4">
-        <div className="flex items-end gap-4 mb-4">
-          <div className="flex-1">
-            <label className="form-label">Chemical</label>
-            <select
-              className="form-select"
-              value={chemUsage.chemicalId}
-              onChange={(e) => updateChemicalUsage(index, 'chemicalId', e.target.value)}
-              required
-              disabled={loading}
-            >
-              <option value="">Select chemical</option>
-              {availableChemicals.map(chem => (
-                <option key={chem.id} value={chem.id}>
-                  {chem.name} - {chem.batch_number} ({chem.current_quantity} available)
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="w-32">
-            <label className="form-label">Quantity</label>
-            <input
-              type="number"
-              min="1"
-              max={selectedChem?.current_quantity}
-              className="form-input"
-              value={chemUsage.quantity}
-              onChange={(e) => updateChemicalUsage(index, 'quantity', e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => removeChemicalUsage(index)}
-            className="text-red-600 hover:text-red-800 p-2"
-            disabled={loading}
-          >
-            <Trash2 size={16} />
-          </button>
+      <div 
+        key={log.id} 
+        className="usage-log-item"
+        onClick={() => handleLogClick(log)}
+      >
+        {/* Left side - Main content */}
+        <div className="usage-log-content">
+          <h3 className="usage-log-user">Log by: {log.userName}</h3>
+          
+          {/* Location */}
+          {log.location && (
+            <div className="usage-log-location">
+              <MapPin size={14} />
+              <span>{log.location}</span>
+            </div>
+          )}
+          
+          {/* Chemicals used */}
+          {log.chemicals && log.chemicals.length > 0 && (
+            <div className="usage-log-chemicals">
+              <FlaskConical size={14} />
+              <span>
+                <strong>Chemicals:</strong> {log.chemicals.map(chem => 
+                  `${getChemicalName(chem)} (${chem.quantity} unit)`
+                ).join(', ')}
+              </span>
+            </div>
+          )}
+          
+          {/* Equipment used */}
+          {log.equipment && log.equipment.length > 0 && (
+            <div className="usage-log-equipment">
+              <Microscope size={14} />
+              <span>
+                <strong>Equipment:</strong> {log.equipment.map(eq => getEquipmentName(eq)).join(', ')}
+              </span>
+            </div>
+          )}
+          
+          {/* Notes preview */}
+          {log.notes && (
+            <div className="usage-log-notes">
+              <strong>Notes:</strong> {log.notes}
+            </div>
+          )}
         </div>
         
-        {selectedChem && selectedChem.type === 'liquid' && renderLiquidChemicalFields(chemUsage, index)}
+        {/* Right side - Date and time */}
+        <div className="usage-log-datetime">
+          <div className="usage-log-date">{date}</div>
+          <div className="usage-log-time">{time}</div>
+        </div>
       </div>
     );
   };
 
-  const renderLiquidChemicalFields = (chemUsage, index) => (
-    <div className="border-t pt-4">
-      <div className="flex items-center gap-4 mb-3">
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            className="mr-2"
-            checked={chemUsage.opened || false}
-            onChange={(e) => updateChemicalUsage(index, 'opened', e.target.checked)}
-            disabled={loading}
-          />
-          <span className="text-sm">Container opened</span>
-        </label>
-      </div>
-      
-      {chemUsage.opened && (
-        <div className="ml-6">
-          <label className="form-label">Remaining amount</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              className="form-input w-32"
-              value={chemUsage.remainingAmount}
-              onChange={(e) => updateChemicalUsage(index, 'remainingAmount', e.target.value)}
-              placeholder="0.0"
-              disabled={loading}
-            />
-            <span className="text-sm text-gray-500">mL</span>
-          </div>
+  return (
+    <>
+      <div className="list-header">
+        <div>
+          <h1 className="list-title">Usage Logs</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Total Log Entries: {logs.length}
+          </p>
         </div>
-      )}
-    </div>
-  );
-
-  const renderChemicalUsageSection = () => (
-    <div className="bg-gray-50 p-4 rounded-lg">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium flex items-center">
-          <FlaskConical className="mr-2" size={20} />
-          Chemical Usage
-        </h3>
-        <button
-          type="button"
-          onClick={addChemicalUsage}
-          className="flex items-center text-blue-600 hover:text-blue-800"
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="add-button"
           disabled={loading}
         >
-          <Plus size={16} className="mr-1" />
-          Add Chemical
+          <Plus className="add-button-icon" />
+          {loading ? 'Loading...' : 'Add Log Entry'}
         </button>
       </div>
-      {selectedChemicals.map((chemUsage, index) => renderChemicalSelection(chemUsage, index))}
-    </div>
-  );
 
-  const renderLogEntryForm = () => (
-    <div className="usage-form">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {renderBasicInformation()}
-        {renderChemicalUsageSection()}
-        
-        <div className="form-group">
-          <label className="form-label">General Notes</label>
-          <textarea
-            className="form-input"
-            rows="3"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="General notes about this usage session..."
-            disabled={loading}
-          />
-        </div>
+      <Modal 
+        isOpen={showAddModal} 
+        onClose={() => setShowAddModal(false)}
+        title="Add New Usage Log"
+      >
+        <AddLogEntry 
+          onSave={handleAddLog}
+          onCancel={() => setShowAddModal(false)}
+          chemicals={chemicals}
+          equipment={equipment}
+          userRole={userRole}
+          currentUser={authUser}
+          addAuditLog={addAuditLog}
+          refreshData={refreshData}
+        />
+      </Modal>
 
-        <div className="flex justify-center pt-4">
-          <button
-            type="submit"
-            className="form-button"
-            disabled={!user || selectedChemicals.length === 0 || loading}
-          >
-            {loading ? 'Logging...' : 'Log Usage'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-
-  const renderEditForm = (log) => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="font-medium">{log.itemName}</h4>
-        <div className="flex gap-2">
-          <button
-            onClick={() => saveEdit(log)}
-            className="text-green-600 hover:text-green-800"
-            disabled={loading}
-          >
-            <Save size={16} />
-          </button>
-          <button
-            onClick={cancelEditing}
-            className="text-gray-600 hover:text-gray-800"
-            disabled={loading}
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div className="form-group">
-          <label className="form-label">Quantity</label>
-          <input
-            type="number"
-            className="form-input"
-            value={editForm.quantity}
-            onChange={(e) => setEditForm({...editForm, quantity: e.target.value})}
-            disabled={loading}
-          />
-        </div>
-        <div className="form-group">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              className="mr-2"
-              checked={editForm.opened || false}
-              onChange={(e) => setEditForm({...editForm, opened: e.target.checked})}
-              disabled={loading}
-            />
-            Container opened
-          </label>
-          {editForm.opened && (
-            <div className="mt-2">
-              <label className="form-label">Remaining amount</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  step="0.1"
-                  className="form-input w-32"
-                  placeholder="0.0"
-                  value={editForm.remaining_amount}
-                  onChange={(e) => setEditForm({...editForm, remaining_amount: e.target.value})}
-                  disabled={loading}
-                />
-                <span className="text-sm text-gray-500">mL</span>
-              </div>
+      <div className="list-container">
+        {/* Search Bar */}
+        <div className="search-row">
+          <div className="autocomplete-container">
+            <div className="search-container">
+              <Search className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search logs by user, chemical, equipment, location, or notes..."
+                className="search-input"
+                value={searchTerm}
+                onChange={handleSearchChange}
+                onFocus={() => searchTerm.length > 2 && setShowAutocomplete(true)}
+                onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
+                disabled={loading}
+              />
             </div>
+            {showAutocomplete && autocompleteSuggestions.length > 0 && (
+              <div className="autocomplete-dropdown">
+                {autocompleteSuggestions.map(log => (
+                  <div 
+                    key={log.id} 
+                    className="autocomplete-item"
+                    onClick={() => selectAutocomplete(log)}
+                  >
+                    {log.userName} - {formatDateTime(log.date).date}
+                    {log.location && ` - ${log.location}`}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Filter and Sort Row */}
+        <div className="filter-sort-row">
+          <select 
+            className="filter-select"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            disabled={loading}
+          >
+            <option value="all">All Dates</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="last-week">Last 7 Days</option>
+          </select>
+          
+          <button 
+            className="sort-direction-button"
+            onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+            disabled={loading}
+          >
+            {sortDirection === 'asc' ? (
+              <>
+                <ArrowUp className="sort-arrow" />
+                Ascending
+              </>
+            ) : (
+              <>
+                <ArrowDown className="sort-arrow" />
+                Descending
+              </>
+            )}
+          </button>
+          
+          <div className="import-export-buttons">
+            <label htmlFor="import-logs" className={`import-button ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <Upload className="import-export-icon" />
+              <span>Import</span>
+              <input
+                id="import-logs"
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                disabled={loading}
+              />
+            </label>
+            <button 
+              className="export-button" 
+              onClick={handleExport} 
+              disabled={loading}
+            >
+              <Download className="import-export-icon" />
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Logs List */}
+        <div className="equipment-list">
+          {sortedLogs.map(renderLogCard)}
+          
+          {sortedLogs.length === 0 && (
+            <p className="no-data">
+              {logs.length === 0 ? 'No usage logs found' : 'No logs match your search'}
+            </p>
           )}
         </div>
       </div>
-      
-      <div className="form-group">
-        <label className="form-label">Notes</label>
-        <textarea
-          className="form-input"
-          rows="2"
-          value={editForm.notes}
-          onChange={(e) => setEditForm({...editForm, notes: e.target.value})}
-          disabled={loading}
-        />
-      </div>
-    </div>
-  );
-
-  const renderLogItem = (log) => (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="font-medium flex items-center">
-          <FlaskConical className="mr-2" size={16} />
-          {log.itemName}
-        </h4>
-        <div className="flex gap-2">
-          <button
-            onClick={() => startEditing(log)}
-            className="text-blue-600 hover:text-blue-800"
-            disabled={loading}
-          >
-            <Edit2 size={16} />
-          </button>
-          <button
-            onClick={() => handleDeleteLog(log)}
-            className="text-red-600 hover:text-red-800"
-            disabled={loading}
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      </div>
-      
-      <div className="text-sm text-gray-600 space-y-1">
-        <p><strong>Date:</strong> {log.date}</p>
-        <p><strong>Quantity:</strong> {log.quantity}</p>
-        {log.opened && (
-          <p>
-            <strong>Container Opened:</strong> Yes 
-            {log.remaining_amount && ` (${log.remaining_amount} mL remaining)`}
-          </p>
-        )}
-        {log.notes && <p><strong>Notes:</strong> {log.notes}</p>}
-      </div>
-    </div>
-  );
-
-  const renderUserLogs = () => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-medium">My Usage Logs</h3>
-      {loading ? (
-        <p className="text-gray-500 text-center py-8">Loading logs...</p>
-      ) : userLogs.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No usage logs found</p>
-      ) : (
-        userLogs.map((log) => (
-          <div key={log.id} className="bg-white border rounded-lg p-4">
-            {editingLog === log.id ? renderEditForm(log) : renderLogItem(log)}
-          </div>
-        ))
-      )}
-    </div>
-  );
-
-  return (
-    <div>
-      <div className="detail-header">
-        <h1 className="detail-title">
-          Log Chemical Usage
-        </h1>
-      </div>
-
-      {renderTabNavigation()}
-
-      {activeTab === TABS.LOG && renderLogEntryForm()}
-      {activeTab === TABS.EDIT && renderUserLogs()}
-    </div>
+    </>
   );
 };
 

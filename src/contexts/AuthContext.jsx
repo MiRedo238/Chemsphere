@@ -180,106 +180,121 @@ export const AuthProvider = ({ children }) => {
     let mounted = true;
     let authSubscription = null;
 
-    const initializeAuth = async () => {
-      try {
-        console.log('🔄 Initializing auth...');
-        
-        // Set up the auth listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            console.log('🔄 Auth state changed:', event, session?.user?.email);
-            
-            if (!mounted) return;
+  const initializeAuth = async () => {
+  try {
+    console.log('🔄 Initializing auth...');
+    
+    // First, get the current session without setting up listeners
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('❌ Session error during init:', sessionError);
+      throw sessionError;
+    }
 
-            // Skip updates during logout
-            if (isLoggingOutRef.current && event === 'SIGNED_OUT') {
-              console.log('✅ Logout complete');
-              isLoggingOutRef.current = false;
+    console.log('📋 Initial session check:', session?.user?.email || 'No session');
+
+    // Handle initial session state BEFORE setting up the listener
+    if (mounted && session?.user) {
+      console.log('👤 Processing initial user session...');
+      try {
+        await updateUserState(session.user);
+        console.log('✅ Initial user state updated successfully');
+      } catch (userError) {
+        console.error('❌ Failed to update initial user state:', userError);
+        // Don't throw here - we still want to set up the listener
+        setError(`Failed to load user profile: ${userError.message}`);
+      }
+    } else if (mounted) {
+      console.log('🧹 No initial session - clearing state');
+      clearAuthState();
+    }
+
+    // Now set up the auth state change listener
+    console.log('👂 Setting up auth state listener...');
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔄 Auth state changed:', event, session?.user?.email);
+        
+        if (!mounted) {
+          console.log('⚠️ Component unmounted, ignoring auth change');
+          return;
+        }
+
+        // Skip updates during logout
+        if (isLoggingOutRef.current && event === 'SIGNED_OUT') {
+          console.log('✅ Logout complete');
+          isLoggingOutRef.current = false;
+          clearAuthState();
+          if (loading) setLoading(false);
+          return;
+        }
+
+        try {
+          // Handle different auth events
+          switch (event) {
+            case 'INITIAL_SESSION':
+              console.log('📋 Initial session detected (from listener)');
+              // Skip - we already handled this above
+              return;
+            case 'SIGNED_IN':
+              console.log('✅ User signed in (from listener)');
+              if (session?.user) {
+                await updateUserState(session.user);
+              }
+              break;
+            case 'SIGNED_OUT':
+              console.log('👋 User signed out (from listener)');
               clearAuthState();
               if (loading) setLoading(false);
               return;
-            }
-
-            try {
-              // Handle different auth events
-              switch (event) {
-                case 'INITIAL_SESSION':
-                  console.log('📋 Initial session detected');
-                  break;
-                case 'SIGNED_IN':
-                  console.log('✅ User signed in');
-                  break;
-                case 'SIGNED_OUT':
-                  console.log('👋 User signed out');
-                  clearAuthState();
-                  if (loading) setLoading(false);
-                  return;
-                case 'TOKEN_REFRESHED':
-                  console.log('🔄 Token refreshed');
-                  break;
-                case 'USER_UPDATED':
-                  console.log('📝 User updated');
-                  break;
+            case 'TOKEN_REFRESHED':
+              console.log('🔄 Token refreshed (from listener)');
+              // Usually don't need to update full user state for token refresh
+              if (session?.user && user?.id === session.user.id) {
+                setUser(session.user);
               }
-              
+              break;
+            case 'USER_UPDATED':
+              console.log('📝 User updated (from listener)');
               if (session?.user) {
                 await updateUserState(session.user);
-              } else if (event !== 'SIGNED_OUT') {
-                // Only clear if not already handled by SIGNED_OUT
-                clearAuthState();
               }
-              
-              if (!initialized) {
-                setInitialized(true);
-              }
-            } catch (error) {
-              console.error('Auth state change error:', error);
-              setError(error.message);
-            } finally {
-              if (loading) {
-                setLoading(false);
-              }
-            }
+              break;
           }
-        );
-
-        authSubscription = subscription;
-
-        // Get the current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          throw sessionError;
-        }
-
-        console.log('📋 Current session:', session?.user?.email || 'No session');
-
-        // Update state based on session
-        if (mounted && session?.user) {
-          await updateUserState(session.user);
-        } else if (mounted) {
-          clearAuthState();
-        }
-
-        if (mounted && !initialized) {
-          setInitialized(true);
-        }
-
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        if (mounted) {
+          
+        } catch (error) {
+          console.error('❌ Auth state change error:', error);
           setError(error.message);
-          clearAuthState();
-          setInitialized(true);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-          console.log('✅ Auth initialization complete');
+        } finally {
+          if (loading) {
+            setLoading(false);
+          }
         }
       }
-    };
+    );
+
+    authSubscription = subscription;
+    console.log('✅ Auth listener set up successfully');
+
+    if (mounted && !initialized) {
+      setInitialized(true);
+    }
+
+  } catch (error) {
+    console.error('❌ Auth initialization error:', error);
+    if (mounted) {
+      setError(error.message);
+      clearAuthState();
+      setInitialized(true);
+    }
+  } finally {
+    if (mounted) {
+      setLoading(false);
+      console.log('✅ Auth initialization complete');
+    }
+  }
+};
 
     // Small delay to ensure Supabase client is ready
     const initTimeout = setTimeout(() => {

@@ -25,71 +25,25 @@ import { supabase } from './lib/supabase/supabaseClient';
 // AuthCallback component for handling OAuth redirects
 function AuthCallback() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState('processing');
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
-      try {
-        console.log('🔄 Processing OAuth callback...');
-        setStatus('processing');
-        
-        const hash = window.location.hash;
-        
-        if (!hash || !hash.includes('access_token')) {
-          console.log('❌ No access token in URL');
-          setStatus('error');
-          setTimeout(() => navigate('/login'), 2000);
-          return;
-        }
-
-        console.log('🔑 OAuth tokens detected in URL');
-        
-        // Give Supabase time to process the URL hash
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Verify session was created
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ Session error:', error);
-          setStatus('error');
-          setTimeout(() => navigate('/login'), 2000);
-          return;
-        }
-
-        if (session?.user) {
-          console.log('✅ OAuth successful:', session.user.email);
-          setStatus('success');
-          
-          // Clear hash
-          window.location.hash = '';
-          
-          // Wait for auth context to update
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Navigate to dashboard
-          navigate('/dashboard', { replace: true });
-        } else {
-          console.log('❌ No session created');
-          setStatus('error');
-          setTimeout(() => navigate('/login'), 2000);
-        }
-      } catch (error) {
-        console.error('❌ Callback error:', error);
-        setStatus('error');
-        setTimeout(() => navigate('/login'), 2000);
+    // Just wait for the auth context to process the OAuth callback
+    if (!loading) {
+      if (user) {
+        console.log('✅ OAuth successful, redirecting to dashboard');
+        navigate('/dashboard', { replace: true });
+      } else {
+        console.log('❌ OAuth failed, redirecting to login');
+        navigate('/login', { replace: true });
       }
-    };
-
-    handleAuthCallback();
-  }, [navigate]);
+    }
+  }, [user, loading, navigate]);
 
   return (
     <div className="app-loading">
       <div className="spinner"></div>
-      {status === 'processing' && <p>Completing authentication...</p>}
-      {status === 'success' && <p>Success! Redirecting...</p>}
-      {status === 'error' && <p>Authentication failed. Redirecting to login...</p>}
+      <p>Completing authentication...</p>
     </div>
   );
 }

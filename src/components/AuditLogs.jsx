@@ -387,7 +387,7 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
                     </div>
                     <div className="audit-log-timestamp">
                       <Clock size={14} className="inline mr-1" />
-                      {formatDate(log.timestamp || log.created_at || log.createdAt)}
+                      {new Date(log.timestamp || log.created_at || log.createdAt).toLocaleString()}
                     </div>
                   </div>
                   <div className="audit-log-details">

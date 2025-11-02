@@ -111,7 +111,7 @@ export const exportToCSV = (data, filename) => {
         ghsSymbols: item.ghs_symbols ? item.ghs_symbols.join(',') : '',
         dateAdded: item.created_at // Add date added to export
       };
-    } else {
+    } else if ('serial_id' in item) {
       // Equipment data
       return {
         name: item.name,
@@ -126,11 +126,32 @@ export const exportToCSV = (data, filename) => {
         nextMaintenance: item.next_maintenance,
         dateAdded: item.created_at // Add date added to export
       };
+    } else if ('action' in item && 'user_name' in item) {
+      // Audit log data
+      return {
+        id: item.id,
+        type: item.type,
+        action: item.action,
+        itemName: item.item_name,
+        userRole: item.user_role,
+        userName: item.user_name,
+        timestamp: item.timestamp,
+        details: item.details ? JSON.stringify(item.details) : '',
+        dateAdded: item.created_at
+      };
+    } else {
+      // Fallback - return the item as is
+      return item;
     }
   });
   
   const headers = Object.keys(mappedData[0]).join(',');
-  const rows = mappedData.map(obj => Object.values(obj).join(','));
+  const rows = mappedData.map(obj => Object.values(obj).map(val => 
+    // Escape commas and quotes in CSV values
+    typeof val === 'string' && (val.includes(',') || val.includes('"')) 
+      ? `"${val.replace(/"/g, '""')}"` 
+      : val
+  ).join(','));
   const csv = [headers, ...rows].join('\n');
   
   const blob = new Blob([csv], { type: 'text/csv' });

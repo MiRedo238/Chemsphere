@@ -26,7 +26,6 @@ const Login = () => {
       }
     } catch (err) {
       console.error('Google login failed:', err);
-    } finally {
       setLoginLoading(false);
     }
   };

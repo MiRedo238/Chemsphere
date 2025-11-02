@@ -4,7 +4,7 @@ import { Search, Download, Upload, ArrowUp, ArrowDown } from 'lucide-react';
 import { csvService } from '../services/csvService';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 import { safetyColors, ghsSymbols } from '../utils/data';
-import { normalizeGhsSymbols, filterChemicals, sortItems, getChemicalSortOptions } from '../utils/helpers';
+import { normalizeGhsSymbols, filterChemicals, sortItems, getChemicalSortOptions, exportToCSV} from '../utils/helpers';
 import { importChemicals } from '../services/api';
 
 const ExpiredChemicals = ({ setSelectedItem, setCurrentView, userRole, refreshData }) => {
@@ -49,13 +49,7 @@ const ExpiredChemicals = ({ setSelectedItem, setCurrentView, userRole, refreshDa
 
   const handleExportCSV = () => {
     try {
-      const formattedData = expiredChemicals.map(chemical => ({
-        ...chemical,
-        expiration_date: format(new Date(chemical.expiration_date), 'yyyy-MM-dd'),
-        date_of_arrival: format(new Date(chemical.date_of_arrival), 'yyyy-MM-dd'),
-        ghs_symbols: chemical.ghs_symbols?.join(', ') || ''
-      }));
-      csvService.generateCSV(formattedData, 'expired-chemicals.csv');
+      exportToCSV(expiredChemicals, 'expired-chemicals');
       
       if (addAuditLog) {
         addAuditLog({

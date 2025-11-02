@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { Resend } from 'https://esm.sh/resend@2'
 
 serve(async (req) => {
   try {
@@ -9,6 +10,32 @@ serve(async (req) => {
     )
 
     console.log('Starting expiration check...')
+
+    // Get admin users for email notifications
+    const { data: adminUsers, error: adminError } = await supabase
+      .from('users')
+      .select('email, username')
+      .eq('role', 'admin')
+      .eq('active', true)
+      .eq('verified', true)
+
+    if (adminError) {
+      console.error('Admin users fetch error:', adminError)
+      throw adminError
+    }
+
+    if (!adminUsers || adminUsers.length === 0) {
+      console.log('No admin users found for notifications')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: 'No admin users found for notifications' 
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`Found ${adminUsers.length} admin users for notifications`)
 
     // Get current date and 90 days from now
     const now = new Date()
@@ -51,8 +78,12 @@ serve(async (req) => {
       }
 
       notifications.push(notification)
+    }
 
-      await sendExpirationEmail(notification)
+    if (notifications.length > 0) {
+      for (const admin of adminUsers) {
+        await sendConsolidatedExpirationEmail(notifications, admin)
+      }
     }
 
     console.log(`Processed ${notifications.length} notifications`)
@@ -61,7 +92,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         processed: notifications.length,
-        notifications: notifications 
+        notifications: notifications,
+        admin_count: adminUsers.length
       }),
       { headers: { 'Content-Type': 'application/json' } }
     )
@@ -78,21 +110,54 @@ serve(async (req) => {
   }
 })
 
-async function sendExpirationEmail(notification) {
-  //TODO: Integrate with actual email service  
-  const emailBody = `
-    🚨 Chemical Expiration Alert
+async function sendConsolidatedExpirationEmail(notifications, admin) {
+  try {
+    const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
     
-    Chemical: ${notification.chemical_name}
-    Batch: ${notification.batch_number}
-    Location: ${notification.location}
-    Current Quantity: ${notification.current_quantity}
-    Expires: ${notification.expiration_date}
-    Days Remaining: ${notification.days_until_expiry}
-    
-    Please take appropriate action.
-  `
+    // Generate HTML for all chemicals
+    const chemicalsList = notifications.map(notification => `
+      <div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 6px; margin: 12px 0;">
+        <h4 style="margin-top: 0; color: #991b1b;">${notification.chemical_name}</h4>
+        <p><strong>Batch:</strong> ${notification.batch_number}</p>
+        <p><strong>Location:</strong> ${notification.location}</p>
+        <p><strong>Current Quantity:</strong> ${notification.current_quantity}</p>
+        <p><strong>Expires:</strong> ${notification.expiration_date}</p>
+        <p><strong>Days Remaining:</strong> <span style="color: ${notification.days_until_expiry <= 7 ? '#dc2626' : '#ea580c'}; font-weight: bold;">${notification.days_until_expiry}</span></p>
+      </div>
+    `).join('')
 
-  console.log(`Would send email for ${notification.chemical_name} (${notification.days_until_expiry} days)`)
-  
+    const emailBody = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">🚨 Chemical Expiration Alert</h2>
+        
+        <p>Dear ${admin.username},</p>
+        
+        <p>You have <strong>${notifications.length}</strong> chemical${notifications.length > 1 ? 's' : ''} that will expire within the next 90 days:</p>
+        
+        ${chemicalsList}
+        
+        <p style="color: #dc2626; font-weight: bold; margin-top: 20px;">Please take appropriate action to handle these expiring chemicals.</p>
+        
+        <p>Best regards,<br>Chemsphere Alert System</p>
+      </div>
+    `
+
+    const { data, error } = await resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: admin.email,
+      subject: `🚨 Chemical Expiration Alert: ${notifications.length} chemical${notifications.length > 1 ? 's' : ''} expiring`,
+      html: emailBody
+    })
+
+    if (error) {
+      console.error('Email sending error:', error)
+      throw error
+    }
+
+    console.log(`Consolidated email sent successfully to ${admin.username} (${admin.email}) for ${notifications.length} chemicals`)
+    console.log('Email ID:', data?.id)
+    
+  } catch (error) {
+    console.error(`Failed to send consolidated email to ${admin.username}:`, error)
+  }
 }

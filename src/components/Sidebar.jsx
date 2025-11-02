@@ -112,7 +112,9 @@ const Sidebar = ({
         </div>
 
         <nav className="sidebar-nav">
-          {menuItems.map((item) => (
+          {menuItems
+            .filter(item => item.key !== 'users' || userRole === 'admin')
+            .map((item) => (
             <div key={item.key}>
               <button
                 className={`nav-item ${activeSection === item.key ? 'active' : ''}`}

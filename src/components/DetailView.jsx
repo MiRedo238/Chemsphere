@@ -11,6 +11,7 @@ import {
 } from '../services/api';
 import { getChemicalUsageLogs } from '../services/usageLogService';
 import { DatabaseContext } from '../contexts/DatabaseContext';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase/supabaseClient';
 
 // Helper function to get user display name (same as in Sidebar and LogChemicalUsage)
@@ -85,7 +86,8 @@ const DetailView = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [usageLogs, setUsageLogs] = useState([]);
-  const { user, addAuditLog } = useContext(DatabaseContext);
+  const { addAuditLog } = useContext(DatabaseContext);
+  const { user } = useAuth();
   
   const isAdmin = userRole === 'admin';
   const isChemical = selectedItem?.type === 'chemical';
@@ -338,7 +340,7 @@ const DetailView = ({
           }        
         };
       }
-      
+
       addAuditLog(auditData);
       setEditing(false);
       console.log('🎉 Update successful!');
@@ -384,7 +386,7 @@ const DetailView = ({
           details: { serialId: selectedItem.serial_id }
         };
       }
-      
+
       addAuditLog(auditData);
       setCurrentView(isChemical ? 'chemicals' : 'equipment');
     } catch (error) {

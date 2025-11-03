@@ -2,8 +2,8 @@ import React, { useState, useContext } from 'react';
 import { ChevronLeft, Microscope } from 'lucide-react';
 import Autocomplete from './Autocomplete';
 import { createEquipment } from '../services/api';
-
 import { DatabaseContext } from '../contexts/DatabaseContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const AddEquipment = ({ 
   setCurrentView, 
@@ -11,7 +11,8 @@ const AddEquipment = ({
   isModal, 
   onClose 
 }) => {
-  const { equipment, setEquipment } = useContext(DatabaseContext);
+  const { equipment, setEquipment, addAuditLog} = useContext(DatabaseContext);
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     model: '',
@@ -30,7 +31,6 @@ const AddEquipment = ({
   const equipmentModels = [...new Set(equipment.map(e => e.model))].map(model => ({ model }));
   const equipmentLocations = [...new Set(equipment.map(e => e.location))].map(location => ({ location }));
 
-  const { user, addAuditLog } = useContext(DatabaseContext);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -60,7 +60,7 @@ const AddEquipment = ({
                 action: 'add',
                 item_name: newEquipment.name,
                 user_role: userRole,
-                user_name: user?.name || user?.username || 'System',
+                user_name: user?.user_metadata?.name || 'System',
                 details: { 
                   model: newEquipment.model,
                   serial_id: newEquipment.serial_id,

@@ -3,6 +3,7 @@ import { ChevronLeft, FlaskConical } from 'lucide-react';
 import Autocomplete from './Autocomplete';
 import { createChemical } from '../services/api';
 import { DatabaseContext } from '../contexts/DatabaseContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const AddChemical = ({ 
   setCurrentView, 
@@ -11,7 +12,8 @@ const AddChemical = ({
   onClose, 
   loading 
 }) => {
-  const { chemicals, setChemicals, fetchChemicals, addAuditLog, user } = useContext(DatabaseContext);
+  const { chemicals, setChemicals, fetchChemicals, addAuditLog } = useContext(DatabaseContext);
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     batch_number: '',
@@ -77,7 +79,7 @@ const AddChemical = ({
           action: 'add',
           item_name: newChemical.name, 
           user_role: userRole,         
-          user_name: user?.name || 'System',            
+          user_name: user?.user_metadata?.name || 'System',
           details: {
             batchNumber: newChemical.batch_number,
             quantity: newChemical.initial_quantity,

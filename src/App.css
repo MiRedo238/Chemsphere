@@ -1761,6 +1761,30 @@ body {
 }
 
 /* Text color utilities */
+.text-green-600 {
+  color: #4caf50 !important;
+}
+
+.text-blue-600 {
+  color: #2196f3 !important;
+}
+
+.text-purple-600 {
+  color: #9c27b0 !important;
+}
+
+.text-orange-600 {
+  color: #ff9800 !important;
+}
+
+.text-indigo-600 {
+  color: #3f51b5 !important;
+}
+
+.text-pink-600 {
+  color: #e91e63 !important;
+}
+
 .text-red-600 {
   color: #dc2626 !important;
 }

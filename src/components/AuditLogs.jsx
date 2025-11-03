@@ -383,7 +383,7 @@ const AuditLogs = ({ setCurrentView, userRole }) => {
                       <span className={`audit-log-action ${getActionColor(log.action)}`}>
                         {log.action} {log.type}
                       </span>
-                      <span className="ml-3 font-medium"> {log.item_name || log.itemName || log.details?.itemName}</span>
+                      <span className="ml-3 font-medium text-gray-600"> {log.item_name || log.itemName || log.details?.itemName}</span>
                     </div>
                     <div className="audit-log-timestamp">
                       <Clock size={14} className="inline mr-1" />

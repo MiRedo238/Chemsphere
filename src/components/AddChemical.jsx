@@ -19,7 +19,8 @@ const AddChemical = ({
     batch_number: '',
     brand: '',
     physical_state: 'liquid', // Default to liquid
-    unit: '',
+    unit_value: '',
+    unit_measure: 'mL',
     initial_quantity: '',
     current_quantity: '',
     expiration_date: '',
@@ -42,6 +43,22 @@ const AddChemical = ({
     { value: 'environmental-hazard', label: 'Environmental Hazard' }
   ];
 
+  // Unit options based on physical state
+  const liquidUnits = [
+    { value: 'mL', label: 'mL' },
+    { value: 'L', label: 'L' },
+    { value: 'μL', label: 'μL' },
+    { value: 'gal', label: 'gal' }
+  ];
+
+  const solidUnits = [
+    { value: 'g', label: 'g' },
+    { value: 'kg', label: 'kg' },
+    { value: 'mg', label: 'mg' },
+    { value: 'lb', label: 'lb' },
+    { value: 'oz', label: 'oz' }
+  ];
+
   // Get unique names, brands, and locations for autocomplete
   const chemicalNames = [...new Set(chemicals.map(c => c.name))].map(name => ({ name }));
   const chemicalBrands = [...new Set(chemicals.map(c => c.brand))].map(brand => ({ brand }));
@@ -53,12 +70,15 @@ const AddChemical = ({
     setApiLoading(true);
 
     try {
+      // Combine unit_value and unit_measure for the database
+      const combinedUnit = formData.unit_value ? `${formData.unit_value}${formData.unit_measure}` : null;
+
       const newChemical = await createChemical({
         name: formData.name,
         batch_number: formData.batch_number,
         brand: formData.brand || null,
         physical_state: formData.physical_state,
-        unit: formData.unit || null,
+        unit: combinedUnit,
         initial_quantity: parseInt(formData.initial_quantity) || 0,
         current_quantity: parseInt(formData.current_quantity) || parseInt(formData.initial_quantity) || 0,
         expiration_date: formData.expiration_date || null,
@@ -94,7 +114,8 @@ const AddChemical = ({
         batch_number: '',
         brand: '',
         physical_state: 'liquid',
-        unit: '',
+        unit_value: '',
+        unit_measure: 'mL',
         initial_quantity: '',
         current_quantity: '',
         expiration_date: '',
@@ -131,12 +152,17 @@ const AddChemical = ({
   };
 
   const handlePhysicalStateChange = (state) => {
+    const defaultUnit = state === 'liquid' ? 'mL' : 'g';
     setFormData(prev => ({ 
       ...prev, 
       physical_state: state,
-      unit: '' // Clear unit when state changes
+      unit_measure: defaultUnit,
+      unit_value: '' // Clear unit value when state changes
     }));
   };
+
+  // Get current unit options based on physical state
+  const currentUnitOptions = formData.physical_state === 'liquid' ? liquidUnits : solidUnits;
 
   return (
     <div>
@@ -232,13 +258,26 @@ const AddChemical = ({
               <label className="form-label">
                 {formData.physical_state === 'liquid' ? 'Volume' : 'Weight'}
               </label>
-              <input
-                type="text"
-                className="form-input"
-                value={formData.unit}
-                onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                placeholder={formData.physical_state === 'liquid' ? 'e.g., 500mL, 1L' : 'e.g., 100g, 1kg'}
-              />
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  className="form-input flex-1"
+                  value={formData.unit_value}
+                  onChange={(e) => setFormData({...formData, unit_value: e.target.value})}
+                  placeholder={formData.physical_state === 'liquid' ? 'e.g., 500' : 'e.g., 100'}
+                />
+                <select
+                  className="form-select w-24"
+                  value={formData.unit_measure}
+                  onChange={(e) => setFormData({...formData, unit_measure: e.target.value})}
+                >
+                  {currentUnitOptions.map(unit => (
+                    <option key={unit.value} value={unit.value}>
+                      {unit.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="form-group">

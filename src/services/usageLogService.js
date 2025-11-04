@@ -390,3 +390,19 @@ export const deleteChemicalUsageLog = async (logId) => {
     throw error;
   }
 };
+
+export const getOpenedChemicals = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('chemical_usage')
+      .select('*')
+      .eq('opened', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching opened chemicals:', error);
+    throw error;
+  }
+};

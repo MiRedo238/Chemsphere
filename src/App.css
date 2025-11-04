@@ -4534,3 +4534,37 @@ body {
     font-size: 13px;
   }
 }
+
+/* Add to your CSS file */
+.opened-chemical-card {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.log-chemical-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.log-chemical-button:hover {
+  background: #2563eb;
+}
+
+.opened-chemical-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}

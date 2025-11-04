@@ -21,6 +21,7 @@ import RouteGuard from './components/RouteGuard';
 import Unauthorized from './pages/Unauthorized';
 import VerificationPending from './components/VerificationPending';
 import { supabase } from './lib/supabase/supabaseClient';
+import OpenedChemicals from './components/OpenedChemicals';
 
 // AuthCallback component for handling OAuth redirects
 function AuthCallback() {
@@ -112,6 +113,7 @@ function DashboardContent() {
       'chemicals': 'chemicals',
       'stock': 'chemicals',
       'expired': 'expired-chemicals',
+      'opened': 'opened-chemicals',
       'equipment': 'equipment',
       'usage': 'log-usage',
       'audit': 'audit-logs',
@@ -178,6 +180,7 @@ function DashboardContent() {
       'log-detail': 'usage', // Add mapping for log detail view
       'audit-logs': 'audit',
       'expired-chemicals': 'expired',
+      'opened-chemicals': 'opened',
       'users': 'users'
     };
     
@@ -283,6 +286,17 @@ function DashboardContent() {
             refreshData={refreshData}
           />
         );
+
+        case 'opened-chemicals':
+          return (
+            <OpenedChemicals 
+              setCurrentView={handleSetCurrentView}
+              userRole={userRole}
+              refreshData={refreshData}
+              addAuditLog={addAuditLog}
+              onViewLogDetail={handleViewLogDetail}
+            />
+          );
 
       case 'users':
         if (userRole !== 'admin') {

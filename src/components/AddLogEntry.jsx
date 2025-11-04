@@ -3,9 +3,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Save, X, User, Calendar, FlaskConical, Microscope, MapPin } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { logChemicalUsage } from '../services/usageLogService';
+import { createChemical, updateChemicalQuantity } from '../services/chemicalService'; 
 
 // Constants
-const CHEMICAL_TYPES = ['inventory', 'expired', 'open'];
+const CHEMICAL_TYPES = [
+  { value: 'inventory', label: 'New Containers' },
+  { value: 'open', label: 'Opened Containers' },
+  { value: 'expired', label: 'Expired' }
+];
 
 // Helper functions
 const getUserDisplayName = (user) => {
@@ -77,7 +82,7 @@ const AddLogEntry = ({
         });
         break;
       case 'open':
-        filteredChemicals = chemicals.filter(chem => chem.current_quantity > 0);
+        filteredChemicals = chemicals.filter(chem => chem.opened === true && chem.current_quantity > 0);
         break;
       case 'inventory':
       default:
@@ -105,7 +110,8 @@ const AddLogEntry = ({
       quantity: 1,
       unit: chemical.unit || '',
       opened: false,
-      remaining_amount: null
+      remaining_amount: null,
+      remaining_location: ''
     };
 
     setFormData(prev => ({
@@ -155,7 +161,61 @@ const AddLogEntry = ({
       return false;
     }
 
+    // Validate that if container is opened, remaining location is provided
+    for (const chem of formData.chemicals) {
+      if (chem.opened && (!chem.remaining_amount || chem.remaining_amount <= 0)) {
+        setError('Please enter a valid remaining amount when container is opened');
+        return false;
+      }
+      if (chem.opened && !chem.remaining_location?.trim()) {
+        setError('Please enter storage location for opened containers');
+        return false;
+      }
+    }
+
     return true;
+  };
+
+  // Function to create new chemical entry for opened containers
+  const createOpenedChemicalEntry = async (originalChemical, chemUsage) => {
+    try {
+      const newChemicalData = {
+        name: `${originalChemical.name} (Opened)`,
+        batch_number: `${originalChemical.batch_number}`,
+        brand: originalChemical.brand,
+        initial_quantity: 1,
+        current_quantity: 1,
+        expiration_date: originalChemical.expiration_date,
+        date_of_arrival: new Date().toISOString().split('T')[0],
+        location: chemUsage.opened ? chemUsage.remaining_location : null,
+        ghs_symbols: originalChemical.ghs_symbols,
+        safety_class: originalChemical.safety_class,
+        physical_state: originalChemical.physical_state,
+        unit: chemUsage.unit || originalChemical.unit,
+        opened: true,
+        remaining_amount: parseFloat(chemUsage.remaining_amount),
+        parent_chemical_id: originalChemical.id
+      };
+
+      const newChemical = await createChemical(newChemicalData);
+      
+      // Add audit log for new chemical creation
+      if (addAuditLog) {
+        addAuditLog({
+          type: 'chemical',
+          action: 'add',
+          item_name: newChemicalData.name,
+          user_role: userRole,
+          user_name: formData.userName,
+          details: `Created from opened container of ${originalChemical.name}`
+        });
+      }
+
+      return newChemical;
+    } catch (error) {
+      console.error('Error creating opened chemical entry:', error);
+      throw new Error('Failed to create opened chemical entry');
+    }
   };
 
   const prepareUsageData = () => {
@@ -180,37 +240,70 @@ const AddLogEntry = ({
     };
 
     const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
+      e.preventDefault();
+      
+      if (!validateForm()) return;
 
-    try {
+      try {
         setLoading(true);
         setError('');
 
         const usageData = prepareUsageData();
-        console.log('Sending usage data:', usageData); // Debug log
+        console.log('Sending usage data:', usageData);
         
+        // First, update quantities for used chemicals
+        const updatePromises = formData.chemicals.map(async (chemUsage) => {
+          await updateChemicalQuantity(chemUsage.chemical_id, chemUsage.quantity);
+        });
+        
+        await Promise.all(updatePromises);
+        
+        // Then, create new chemical entries for opened containers
+        const openedChemicalPromises = formData.chemicals
+          .filter(chem => chem.opened && chem.remaining_amount > 0)
+          .map(async (chemUsage) => {
+            const originalChemical = chemicals.find(c => c.id === chemUsage.chemical_id);
+            if (originalChemical) {
+              return await createOpenedChemicalEntry(originalChemical, chemUsage);
+            }
+            return null;
+          });
+
+        await Promise.all(openedChemicalPromises);
+        
+        // Then log the usage
         await logChemicalUsage(usageData);
         await refreshData();
 
+        // Add audit log for log entry creation
+        if (addAuditLog) {
+          addAuditLog({
+            type: 'log',
+            action: 'add',
+            item_name: 'Usage Log Entry',
+            user_role: userRole,
+            user_name: formData.userName,
+            details: `Created log entry with ${formData.chemicals.length} chemicals and ${formData.equipment_ids.length} equipment`
+          });
+        }
+
         const dateTime = new Date(`${formData.date}T${formData.time}`);
         const newLog = {
-        user_name: formData.userName,
-        date: dateTime.toISOString(),
-        chemicals: formData.chemicals,
-        equipment: equipment.filter(eq => formData.equipment_ids.includes(eq.id)),
-        notes: formData.notes,
-        location: formData.location
+          user_name: formData.userName,
+          date: dateTime.toISOString(),
+          chemicals: formData.chemicals,
+          equipment: equipment.filter(eq => formData.equipment_ids.includes(eq.id)),
+          notes: formData.notes,
+          location: formData.location
         };
 
         onSave(newLog);
-    } catch (error) {
+      } catch (error) {
         console.error('Error creating log entry:', error);
         setError('Failed to create log entry. Please try again.');
-    } finally {
+      } finally {
         setLoading(false);
-    }
+      }
     };
 
   // Render chemical form
@@ -267,18 +360,30 @@ const AddLogEntry = ({
           </label>
 
           {chemUsage.opened && (
-            <div>
-              <label className="form-label">Remaining Amount</label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                value={chemUsage.remaining_amount || ''}
-                onChange={(e) => handleChemicalUpdate(index, 'remaining_amount', e.target.value)}
-                className="form-input"
-                placeholder="0.0"
-              />
-            </div>
+            <>
+              <div>
+                <label className="form-label">Remaining Amount</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={chemUsage.remaining_amount || ''}
+                  onChange={(e) => handleChemicalUpdate(index, 'remaining_amount', e.target.value)}
+                  className="form-input"
+                  placeholder="0.0"
+                />
+              </div>
+              <div>
+                <label className="form-label">Storage Location</label>
+                <input
+                  type="text"
+                  value={chemUsage.remaining_location || ''}
+                  onChange={(e) => handleChemicalUpdate(index, 'remaining_location', e.target.value)}
+                  className="form-input"
+                  placeholder="Where is the remaining chemical stored?"
+                />
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -410,15 +515,15 @@ const ChemicalsSection = ({
 const ChemicalTypeFilter = ({ selectedType, onTypeChange }) => (
   <div className="flex space-x-2">
     {CHEMICAL_TYPES.map(type => (
-      <label key={type} className="flex items-center">
+      <label key={type.value} className="flex items-center">
         <input
           type="radio"
-          value={type}
-          checked={selectedType === type}
+          value={type.value}
+          checked={selectedType === type.value}
           onChange={(e) => onTypeChange(e.target.value)}
           className="mr-1"
         />
-        <span className="text-sm capitalize">{type}</span>
+        <span className="text-sm">{type.label}</span>
       </label>
     ))}
   </div>

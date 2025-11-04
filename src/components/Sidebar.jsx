@@ -12,7 +12,8 @@ import {
   ChevronRight,
   X,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  Beaker
 } from 'lucide-react';
 
 const Sidebar = ({ 
@@ -80,7 +81,8 @@ const Sidebar = ({
       hasSubmenu: true,
       submenu: [
         { icon: TestTube2, label: 'Inventory', key: 'stock' },
-        { icon: AlertTriangle, label: 'Expired', key: 'expired' }
+        { icon: AlertTriangle, label: 'Expired', key: 'expired' },
+        { icon: Beaker, label: 'Opened', key: 'opened' }
       ]
     },
     { icon: Wrench, label: 'Equipment', key: 'equipment' },

@@ -438,6 +438,7 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
+  updateUserState(session.user);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }

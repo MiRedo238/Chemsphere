@@ -406,6 +406,15 @@ export const AuthProvider = ({ children }) => {
     );
   }
 
+  const isAdminOrSuperAdmin = () => {
+    return (
+      user &&
+      (userRole === 'admin' || userRole === 'super_admin') &&
+      userVerified &&
+      userActive
+    );
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user,
@@ -419,7 +428,8 @@ export const AuthProvider = ({ children }) => {
       logout,
       clearError,
       canAccess: canAccess(),
-      isAdmin: isAdmin()
+      isAdmin: isAdmin(),
+      isAdminOrSuperAdmin: isAdminOrSuperAdmin()
     }}>
       {children}
     </AuthContext.Provider>

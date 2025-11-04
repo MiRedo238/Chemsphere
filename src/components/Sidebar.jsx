@@ -115,7 +115,7 @@ const Sidebar = ({
 
         <nav className="sidebar-nav">
           {menuItems
-            .filter(item => item.key !== 'users' || userRole === 'admin')
+            .filter(item => item.key !== 'users' || ['admin', 'super_admin'].includes(userRole))
             .map((item) => (
             <div key={item.key}>
               <button

@@ -11,9 +11,11 @@ const UserManagement = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [activeTab, setActiveTab] = useState('verified'); // 'verified' or 'pending'
+  const [currentUser, setCurrentUser] = useState(null); // Add current user state
 
   useEffect(() => {
     loadUsers();
+    loadCurrentUser(); // Load current user info
   }, []);
 
   const loadUsers = async () => {
@@ -29,6 +31,21 @@ const UserManagement = () => {
       setLoading(false);
     }
   };
+
+  const loadCurrentUser = async () => {
+    try {
+      // Assuming you have a method to get current user info
+      const user = await userService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (err) {
+      console.error('Failed to load current user:', err);
+    }
+  };
+
+  // Check if current user is super admin
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+  // Check if current user is admin or super admin
+  const isAdminOrHigher = currentUser?.role === 'admin' || isSuperAdmin;
 
   const handleUpdateRole = async (userId, newRole) => {
     try {
@@ -171,6 +188,11 @@ const UserManagement = () => {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
+        {currentUser && (
+          <div className="text-sm text-gray-600">
+            Logged in as: <span className="font-medium capitalize">{currentUser.role.replace('_', ' ')}</span>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -235,46 +257,57 @@ const UserManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={user.role}
-                        onChange={(e) => handleUpdateRole(user.id, e.target.value)}
-                        className="border rounded p-1"
-                        disabled={actionLoading === `role-${user.id}` || user.marked_for_deletion}
-                      >
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                      </select>
+                      {isSuperAdmin ? (
+                        <select
+                          value={user.role}
+                          onChange={(e) => handleUpdateRole(user.id, e.target.value)}
+                          className="border rounded p-1"
+                          disabled={actionLoading === `role-${user.id}` || user.marked_for_deletion}
+                        >
+                          <option value="user">User</option>
+                          <option value="admin">Admin</option>
+                          <option value="super_admin">Super Admin</option>
+                        </select>
+                      ) : (
+                        <span className="capitalize">{user.role.replace('_', ' ')}</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex space-x-2">
-                        {user.active && (
+                        {isAdminOrHigher && (
+                          <>
+                            {user.active && (
+                              <button
+                                onClick={() => handleToggleUserStatus(user.id, user.active)}
+                                disabled={actionLoading === `status-${user.id}` || user.marked_for_deletion}
+                                className="bg-red-100 text-red-600 px-3 py-1 rounded text-sm font-medium hover:bg-red-200 disabled:opacity-50"
+                              >
+                                {actionLoading === `status-${user.id}` ? 'Loading...' : 'Deactivate'}
+                              </button>
+                            )}
+                            {!user.active && (
+                              <button
+                                onClick={() => handleToggleUserStatus(user.id, user.active)}
+                                disabled={actionLoading === `status-${user.id}` || user.marked_for_deletion}
+                                className="bg-green-100 text-green-600 px-3 py-1 rounded text-sm font-medium hover:bg-green-200 disabled:opacity-50"
+                              >
+                                {actionLoading === `status-${user.id}` ? 'Loading...' : 'Reactivate'}
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {isSuperAdmin && (
                           <button
-                            onClick={() => handleToggleUserStatus(user.id, user.active)}
-                            disabled={actionLoading === `status-${user.id}` || user.marked_for_deletion}
-                            className="bg-red-100 text-red-600 px-3 py-1 rounded text-sm font-medium hover:bg-red-200 disabled:opacity-50"
+                            onClick={() => handleDeleteClick(user)}
+                            disabled={actionLoading === `delete-${user.id}` || user.marked_for_deletion}
+                            className="bg-red-500 text-white p-2 rounded text-sm font-medium hover:bg-red-600 disabled:opacity-50"
+                            title="Delete User"
                           >
-                            {actionLoading === `status-${user.id}` ? 'Loading...' : 'Deactivate'}
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
                           </button>
                         )}
-                        {!user.active && (
-                          <button
-                            onClick={() => handleToggleUserStatus(user.id, user.active)}
-                            disabled={actionLoading === `status-${user.id}` || user.marked_for_deletion}
-                            className="bg-green-100 text-green-600 px-3 py-1 rounded text-sm font-medium hover:bg-green-200 disabled:opacity-50"
-                          >
-                            {actionLoading === `status-${user.id}` ? 'Loading...' : 'Reactivate'}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteClick(user)}
-                          disabled={actionLoading === `delete-${user.id}` || user.marked_for_deletion}
-                          className="bg-red-500 text-white p-2 rounded text-sm font-medium hover:bg-red-600 disabled:opacity-50"
-                          title="Delete User"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -313,23 +346,27 @@ const UserManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleVerifyUser(user.id)}
-                        disabled={actionLoading === `verify-${user.id}`}
-                        className="bg-green-500 text-white px-3 py-1 rounded text-sm font-medium hover:bg-green-600 disabled:opacity-50"
-                      >
-                        {actionLoading === `verify-${user.id}` ? 'Verifying...' : 'Verify User'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(user)}
-                        disabled={actionLoading === `delete-${user.id}`}
-                        className="bg-red-500 text-white p-2 rounded text-sm font-medium hover:bg-red-600 disabled:opacity-50"
-                        title="Delete User"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      {isAdminOrHigher && (
+                        <button
+                          onClick={() => handleVerifyUser(user.id)}
+                          disabled={actionLoading === `verify-${user.id}`}
+                          className="bg-green-500 text-white px-3 py-1 rounded text-sm font-medium hover:bg-green-600 disabled:opacity-50"
+                        >
+                          {actionLoading === `verify-${user.id}` ? 'Verifying...' : 'Verify User'}
+                        </button>
+                      )}
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => handleDeleteClick(user)}
+                          disabled={actionLoading === `delete-${user.id}`}
+                          className="bg-red-500 text-white p-2 rounded text-sm font-medium hover:bg-red-600 disabled:opacity-50"
+                          title="Delete User"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -346,16 +383,18 @@ const UserManagement = () => {
       )}
 
       {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        isOpen={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setUserToDelete(null);
-        }}
-        onConfirm={handleDeleteConfirm}
-        user={userToDelete}
-        loading={actionLoading && actionLoading.startsWith('delete-')}
-      />
+      {isSuperAdmin && (
+        <DeleteConfirmationModal
+          isOpen={deleteModalOpen}
+          onClose={() => {
+            setDeleteModalOpen(false);
+            setUserToDelete(null);
+          }}
+          onConfirm={handleDeleteConfirm}
+          user={userToDelete}
+          loading={actionLoading && actionLoading.startsWith('delete-')}
+        />
+      )}
     </div>
   );
 };

@@ -1,40 +1,39 @@
-// src/components/RouteGuard.jsx
 import { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const RouteGuard = ({ children, requireAdmin = false }) => {
-  const { user, userVerified, userActive, isAdmin, loading, isLockedOut } = useAuth();
+  const { user, userVerified, userActive, isAdmin, userRole, loading, isLockedOut, isAdminOrSuperAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!loading) {
-      // Check if user can access the system
       const canAccessSystem = user && userVerified && userActive;
-      
+
       if (!canAccessSystem || isLockedOut) {
-        navigate('/unauthorized', { 
-          state: { 
-            message: 'Your account is pending verification or has been deactivated.' 
-          } 
+        navigate('/unauthorized', {
+          state: {
+            message: 'Your account is pending verification or has been deactivated.',
+          },
         });
-      } else if (requireAdmin && !isAdmin) {
-        navigate('/unauthorized', { 
-          state: { 
-            message: 'Admin privileges required to access this page.' 
-          } 
+      } 
+      // Allow both admin and super_admin if requireAdmin is true
+      else if (requireAdmin && !isAdminOrSuperAdmin) {
+        navigate('/unauthorized', {
+          state: {
+            message: 'Admin or Super Admin privileges required to access this page.',
+          },
         });
       }
     }
-  }, [user, userVerified, userActive, isAdmin, loading, navigate, requireAdmin, isLockedOut]);
+  }, [user, userVerified, userActive, isAdmin, userRole, loading, navigate, requireAdmin, isLockedOut]);
 
   if (loading) {
     return <div className="flex justify-center items-center h-full">Loading...</div>;
   }
 
-  // Check access conditions
   const canAccessSystem = user && userVerified && userActive && !isLockedOut;
-  const hasRequiredRole = !requireAdmin || isAdmin;
+  const hasRequiredRole = !requireAdmin || isAdminOrSuperAdmin;
 
   if (!canAccessSystem || !hasRequiredRole) {
     return null;

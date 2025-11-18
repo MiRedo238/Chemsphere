@@ -301,10 +301,11 @@ export const AuthProvider = ({ children }) => {
       initializeAuth();
     }, 100);
 
-    // Safety timeout
+    // Safety timeout: if initialization stalls, quietly clear loading
     const safetyTimeout = setTimeout(() => {
       if (mounted && loading) {
-        console.warn('⚠️ Auth loading timeout - forcing loading to false');
+        // Use debug instead of warn to avoid polluting the console during normal dev.
+        console.debug('Auth loading timeout — forcing loading to false');
         setLoading(false);
         setInitialized(true);
       }
@@ -319,6 +320,54 @@ export const AuthProvider = ({ children }) => {
       }
     };
   }, []); // Only run once on mount
+
+  // Handle OAuth redirect callback safely (parse tokens and store session)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const href = window.location.href || '';
+    const hasCallback = href.includes('access_token') || href.includes('code=') || (window.location.hash && window.location.hash.includes('access_token'));
+    if (!hasCallback) return;
+
+    let mounted = true;
+    (async () => {
+      try {
+        console.log('🔁 Processing OAuth callback from URL');
+        setLoading(true);
+        const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
+        if (error) {
+          console.warn('getSessionFromUrl error:', error);
+          if (mounted) setError(error.message || 'Auth callback error');
+          return;
+        }
+
+        const session = data?.session;
+        if (session?.user) {
+          try {
+            await updateUserState(session.user);
+            console.log('✅ OAuth callback processed and user state updated');
+          } catch (e) {
+            console.error('Error updating user state after callback:', e);
+          }
+        }
+
+        // Clean the URL to avoid re-processing the callback on reload
+        try {
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        } catch (e) {
+          console.warn('Could not clean OAuth callback URL:', e);
+        }
+      } catch (err) {
+        console.error('Error handling OAuth callback:', err);
+        if (mounted) setError(err.message || 'Error handling auth callback');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, []);
 
   const logout = async () => {
     try {
@@ -438,7 +487,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  updateUserState(session.user);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }

@@ -3,7 +3,6 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Search, Plus, Download, Upload, ArrowUp, ArrowDown, Calendar, User, FlaskConical, Microscope, MapPin } from 'lucide-react';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 import { useAuth } from '../contexts/AuthContext';
-import { getChemicalUsageLogs } from '../services/usageLogService';
 import AddLogEntry from './AddLogEntry';
 import Modal from './Modal';
 import { exportToCSV } from '../utils/helpers';
@@ -22,39 +21,44 @@ const LogChemicalUsage = ({ setCurrentView, addAuditLog, userRole, refreshData, 
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
 
-  // Fetch all logs
-  const fetchAllLogs = async () => {
-    try {
-      setLoading(true);
-      const allLogs = await getChemicalUsageLogs();
-      
-      const formattedLogs = allLogs.map(log => ({
-        id: log.id,
-        type: 'usage_log',
-        user_id: log.user_id,
-        user_name: log.user_name,
-        userName: log.user_name || 'Unknown User',
-        date: log.date,
-        notes: log.notes,
-        location: log.location,
-        created_at: log.created_at,
-        updated_at: log.updated_at,
-        equipment: log.equipment || [],
-        chemicals: log.chemicals || []
-      })).sort((a, b) => new Date(b.date) - new Date(a.date));
-      
-      setLogs(formattedLogs);
-    } catch (error) {
-      console.error('Error fetching usage logs:', error);
-      alert('Failed to fetch usage logs');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { usageLogs, fetchUsageLogs, logUsage } = useContext(DatabaseContext);
 
+  // Use cache-first usageLogs from DatabaseContext. Only fetch if cache empty.
   useEffect(() => {
-    fetchAllLogs();
-  }, []);
+    let mounted = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        let data = usageLogs && usageLogs.length > 0 ? usageLogs : await fetchUsageLogs();
+        if (!data) data = [];
+
+        const formattedLogs = data.map(log => ({
+          id: log.id,
+          type: 'usage_log',
+          user_id: log.user_id,
+          user_name: log.user_name,
+          userName: log.user_name || 'Unknown User',
+          date: log.date,
+          notes: log.notes,
+          location: log.location,
+          created_at: log.created_at,
+          updated_at: log.updated_at,
+          equipment: log.equipment || [],
+          chemicals: log.chemicals || []
+        })).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        if (mounted) setLogs(formattedLogs);
+      } catch (error) {
+        console.error('Error fetching usage logs:', error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+
+    return () => { mounted = false; };
+  }, [usageLogs, fetchUsageLogs]);
 
   // Filter and sort logs
   const filteredLogs = logs.filter(log => {
@@ -148,8 +152,8 @@ const LogChemicalUsage = ({ setCurrentView, addAuditLog, userRole, refreshData, 
   // Handle adding new log
   const handleAddLog = async (newLog) => {
     try {
-      await refreshData();
-      await fetchAllLogs();
+      // After adding a log, refresh usage logs from the server to ensure we have full details.
+      if (fetchUsageLogs) await fetchUsageLogs(true);
       
       addAuditLog({
         type: 'usage_log',

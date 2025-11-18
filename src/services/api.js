@@ -20,7 +20,11 @@ const toSnakeCase = (obj) => {
   
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    // Special mappings for known frontend keys that don't directly map to DB columns
+    let snakeKey;
+    if (key === 'brand') snakeKey = 'brandname';
+    else if (key === 'unit' || key === 'unitValue' || key === 'unit_value') snakeKey = 'volume_per_unit';
+    else snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
     result[snakeKey] = value;
   }
   return result;
@@ -53,17 +57,30 @@ export const getChemical = async (id) => {
 };
 
 export const createChemical = async (data) => {
-  // Convert camelCase to snake_case for database
-  const dbData = toSnakeCase(data);
-  
+  // Normalize and map frontend fields to DB schema
+  const dbData = {
+    name: data.name,
+    batch_number: data.batch_number,
+    brandname: data.brand || data.brandname || null,
+    // volume_per_unit: numeric value (take unit_value if provided)
+    volume_per_unit: data.unit_value ? Number(data.unit_value) : (data.volumePerUnit || data.volume_per_unit || null),
+    initial_quantity: data.initial_quantity ? Number(data.initial_quantity) : (data.initialQuantity ? Number(data.initialQuantity) : 0),
+    current_quantity: data.current_quantity ? Number(data.current_quantity) : (data.currentQuantity ? Number(data.currentQuantity) : (data.initial_quantity ? Number(data.initial_quantity) : 0)),
+    expiration_date: data.expiration_date || data.expirationDate || null,
+    date_of_arrival: data.date_of_arrival || data.dateOfArrival || null,
+    safety_class: data.safety_class || data.safetyClass || null,
+    location: data.location || null,
+    ghs_symbols: normalizeGhsSymbols(data.ghs_symbols || data.ghsSymbols || []),
+  };
+
   const { data: newChemical, error } = await supabase
     .from('chemicals')
     .insert([dbData])
     .select()
     .single();
-    
+
   if (error) throw error;
-  
+
   // Convert snake_case to camelCase for frontend
   return toCamelCase(newChemical);
 };

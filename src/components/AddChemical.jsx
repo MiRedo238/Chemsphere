@@ -1,7 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { ChevronLeft, FlaskConical } from 'lucide-react';
 import Autocomplete from './Autocomplete';
-import { createChemical } from '../services/api';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -12,25 +11,26 @@ const AddChemical = ({
   onClose, 
   loading 
 }) => {
-  const { chemicals, setChemicals, fetchChemicals, addAuditLog } = useContext(DatabaseContext);
+  const { chemicals, createChemical, addAuditLog } = useContext(DatabaseContext);
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     batch_number: '',
     brand: '',
-    physical_state: 'liquid', // Default to liquid
+    physical_state: '',
     unit_value: '',
-    unit_measure: 'mL',
+    unit_measure: 'Unit',
     initial_quantity: '',
     current_quantity: '',
     expiration_date: '',
     date_of_arrival: '',
-    safety_class: 'moderate-hazard',
+    safety_class: '',
     location: '',
     ghs_symbols: []
   });
   const [apiLoading, setApiLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const ghsOptions = [
     { value: 'explosive', label: 'Explosive' },
@@ -62,12 +62,39 @@ const AddChemical = ({
   // Get unique names, brands, and locations for autocomplete
   const chemicalNames = [...new Set(chemicals.map(c => c.name))].map(name => ({ name }));
   const chemicalBrands = [...new Set(chemicals.map(c => c.brand))].map(brand => ({ brand }));
-  const chemicalLocations = [...new Set(chemicals.map(c => c.location))].map(location => ({ location }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    // Clear previous field errors and validate fields that use default placeholders
+    setFieldErrors({});
+
+    const errs = {};
+    if (!formData.physical_state) {
+      errs.physical_state = 'Select physical state';
+      errs.unit_value = 'Required';
+      errs.unit_measure = 'Required';
+    } else {
+      if (!formData.unit_value || String(formData.unit_value).trim() === '') {
+        errs.unit_value = 'Required';
+      }
+      if (!formData.unit_measure || formData.unit_measure === 'Unit') {
+        errs.unit_measure = 'Required';
+      }
+    }
+
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs);
+      return;
+    }
+
     setApiLoading(true);
+
+    if (userRole !== 'admin') {
+      setApiLoading(false);
+      setError('Only admins can add chemicals.');
+      return;
+    }
 
     try {
       // Combine unit_value and unit_measure for the database
@@ -88,10 +115,7 @@ const AddChemical = ({
         ghs_symbols: formData.ghs_symbols
       });
 
-      // Fixed: Use setChemicals instead of undefined updateChemicals
-      if (fetchChemicals) {
-        await fetchChemicals(true);
-      } 
+      // optimistic flow: createChemical already updates cache
 
       if (addAuditLog) {
         addAuditLog({
@@ -108,19 +132,19 @@ const AddChemical = ({
         });
       }
 
-      // Reset form
+      // Reset form to empty values
       setFormData({
         name: '',
         batch_number: '',
         brand: '',
-        physical_state: 'liquid',
+        physical_state: '',
         unit_value: '',
-        unit_measure: 'mL',
+        unit_measure: '',
         initial_quantity: '',
         current_quantity: '',
         expiration_date: '',
         date_of_arrival: '',
-        safety_class: 'moderate-hazard',
+        safety_class: '',
         location: '',
         ghs_symbols: []
       });
@@ -132,7 +156,8 @@ const AddChemical = ({
       }
     } catch (error) {
       console.error('Failed to add chemical:', error);
-      setError(error.message || 'Failed to add chemical. Please try again.');
+      const message = error?.message || error?.error || (typeof error === 'string' ? error : null) || JSON.stringify(error);
+      setError(message || 'Failed to add chemical. Please try again.');
     } finally {
       setApiLoading(false);
     }
@@ -152,11 +177,10 @@ const AddChemical = ({
   };
 
   const handlePhysicalStateChange = (state) => {
-    const defaultUnit = state === 'liquid' ? 'mL' : 'g';
     setFormData(prev => ({ 
       ...prev, 
       physical_state: state,
-      unit_measure: defaultUnit,
+      unit_measure: 'Unit',
       unit_value: '' // Clear unit value when state changes
     }));
   };
@@ -251,26 +275,39 @@ const AddChemical = ({
                 <span className="physical-state-label">Solid</span>
               </label>
             </div>
+            {fieldErrors.physical_state && (
+              <div style={{ color: '#d9534f', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                {fieldErrors.physical_state}
+              </div>
+            )}
           </div>
 
           <div className="form-grid">
             <div className="form-group">
-              <label className="form-label">
-                {formData.physical_state === 'liquid' ? 'Volume' : 'Weight'}
-              </label>
+              <label className="form-label" aria-hidden="true">&nbsp;</label>
               <div className="flex space-x-2">
                 <input
                   type="text"
                   className="form-input flex-1"
                   value={formData.unit_value}
                   onChange={(e) => setFormData({...formData, unit_value: e.target.value})}
-                  placeholder={formData.physical_state === 'liquid' ? 'e.g., 500' : 'e.g., 100'}
+                  placeholder={
+                    formData.physical_state === ''
+                      ? 'Select physical state'
+                      : formData.physical_state === 'liquid'
+                        ? 'Volume'
+                        : 'Weight'
+                  }
+                  aria-label="amount"
+                  aria-invalid={!!fieldErrors.unit_value}
                 />
                 <select
                   className="form-select w-24"
                   value={formData.unit_measure}
                   onChange={(e) => setFormData({...formData, unit_measure: e.target.value})}
+                  aria-invalid={!!fieldErrors.unit_measure}
                 >
+                  <option value="Unit">Unit</option>
                   {currentUnitOptions.map(unit => (
                     <option key={unit.value} value={unit.value}>
                       {unit.label}
@@ -278,8 +315,17 @@ const AddChemical = ({
                   ))}
                 </select>
               </div>
+              {fieldErrors.unit_value && (
+                <div style={{ color: '#d9534f', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                  {fieldErrors.unit_value}
+                </div>
+              )}
+              {fieldErrors.unit_measure && (
+                <div style={{ color: '#d9534f', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                  {fieldErrors.unit_measure}
+                </div>
+              )}
             </div>
-
             <div className="form-group">
               <label className="form-label">Initial Quantity</label>
               <input
@@ -350,14 +396,31 @@ const AddChemical = ({
 
           <div className="form-group">
             <label className="form-label">Location</label>
-            <Autocomplete
-              value={formData.location}
-              onChange={(value) => setFormData(prev => ({ ...prev, location: value }))}
-              suggestions={chemicalLocations}
-              placeholder="Enter location"
-              onSelect={(item) => handleAutocompleteSelect('location', item.location)}
-              field="location"
-            />
+            <div className="radio-grid">
+              {[
+                { value: 'flammable', label: 'flammable', cls: 'flammable' },
+                { value: 'health-hazard', label: 'Health Hazard', cls: 'health' },
+                { value: 'reactive-oxidizing', label: 'reactive and oxidizing', cls: 'reactive' },
+                { value: 'corrosive', label: 'corrosive', cls: 'corrosive' },
+                { value: 'moderate-hazard', label: 'general/moderate hazard', cls: 'moderate' }
+              ].map(opt => (
+                <label key={opt.value} className={`radio-option ${opt.cls}`}>
+                  <input
+                    type="radio"
+                    name="location"
+                    value={opt.value}
+                    checked={formData.location === opt.value}
+                    onChange={() => setFormData(prev => ({ ...prev, location: opt.value }))}
+                  />
+                  <span className={`radio-color ${opt.cls}`} aria-hidden="true">
+                    <svg viewBox="0 0 24 24" className="radio-check" aria-hidden="true" focusable="false">
+                      <path d="M4.5 12.5l4 4 11-11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <span className="radio-label-text">{opt.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-center pt-4">

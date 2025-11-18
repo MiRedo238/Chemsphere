@@ -5,11 +5,11 @@ import { statusColors } from '../utils/data';
 import { filterEquipment, sortItems, exportToCSV, getEquipmentSortOptions } from '../utils/helpers';
 import AddEquipment from './AddEquipment';
 import Modal from './Modal';
-import { importEquipment } from '../services/api';
+import { csvService } from '../services/csvService';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
-const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog }) => {
-  const { equipment, setEquipment } = useContext(DatabaseContext);
+const EquipmentList = ({ setSelectedItem, setCurrentView, userRole }) => {
+  const { equipment, addAuditLog, importEquipment } = useContext(DatabaseContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortField, setSortField] = useState('name');
@@ -80,38 +80,31 @@ const EquipmentList = ({ setSelectedItem, setCurrentView, userRole, addAuditLog 
     const file = e.target.files[0];
     if (!file) return;
     
-    try {
-      setLoading(true);
-      setError('');
-      
-      const importedData = await importEquipment(file);
-      
-      // Update local state
-      setEquipment([...equipment, ...importedData]);
-      
-      addAuditLog({
-        type: 'equipment',
-        action: 'import',
-        itemName: `${importedData.length} items`,
-        user: userRole,
-        timestamp: new Date().toISOString(),
-        details: { count: importedData.length }
-      });
-      
-      // Clear file input
-      e.target.value = '';
-      
-    } catch (error) {
-      console.error('Failed to import equipment:', error);
-      setError('Failed to import equipment. Please check the file format.');
-    } finally {
-      setLoading(false);
-    }
+      try {
+        setLoading(true);
+        setError('');
+        const parsed = await csvService.parseCSV(file);
+        const importedData = await importEquipment(parsed);
+        addAuditLog({
+          type: 'equipment',
+          action: 'import',
+          itemName: `${importedData.length || 0} items`,
+          user: userRole,
+          timestamp: new Date().toISOString(),
+          details: { count: importedData.length || 0 }
+        });
+        e.target.value = '';
+      } catch (error) {
+        console.error('Failed to import equipment:', error);
+        setError('Failed to import equipment. Please check the file format.');
+      } finally {
+        setLoading(false);
+      }
   };
 
   // Handle adding new equipment
   const handleAddEquipment = (newEquipment) => {
-    setEquipment([...equipment, newEquipment]);
+    // createEquipment handles optimistic cache updates; refresh if needed
     addAuditLog({
       type: 'equipment',
       action: 'add',

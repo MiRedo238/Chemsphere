@@ -7,12 +7,15 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
-    autoRefreshToken: true,
+    // In dev we disable automatic refresh to avoid aggressive refresh attempts
+    // (which can spam network when refresh tokens are invalid). In production
+    // keep the default behavior.
+    autoRefreshToken: !import.meta.env.DEV,
     detectSessionInUrl: true,
     flowType: 'pkce',
     storage: window.localStorage, // Explicitly set storage
     storageKey: 'supabase.auth.token', // Custom storage key
-    debug: true // Enable debug mode to see auth logs
+    debug: false // Disable verbose debug logs in browser console
   }
 })
 

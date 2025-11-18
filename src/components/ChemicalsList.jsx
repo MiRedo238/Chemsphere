@@ -3,13 +3,13 @@ import React, { useState, useContext } from 'react';
 import { Search, Plus, Download, Upload, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { safetyColors, ghsSymbols } from '../utils/data';
 import { filterChemicals, sortItems, exportToCSV, normalizeGhsSymbols, getChemicalSortOptions } from '../utils/helpers';
-import { importChemicals } from '../services/api';
+import { csvService } from '../services/csvService';
 import AddChemical from './AddChemical';
 import Modal from './Modal';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 
 const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData }) => {
-  const { chemicals, setChemicals, addAuditLog } = useContext(DatabaseContext);
+  const { chemicals, addAuditLog, importChemicals } = useContext(DatabaseContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('all');
   const [sortField, setSortField] = useState('name');
@@ -108,15 +108,16 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
     if (file) {
       try {
         setLoading(true);
-        const result = await importChemicals(file);
-        await refreshData();
+        const parsed = await csvService.parseCSV(file);
+        const result = await importChemicals(parsed);
+        // Import is a mutation — DatabaseContext.importChemicals already refreshes cache
         addAuditLog({
           type: 'chemical',
           action: 'import',
-          itemName: `${result.imported} items`,
+          itemName: `${(result.imported || result.length || 0)} items`,
           user: userRole,
           timestamp: new Date().toISOString(),
-          details: { count: result.imported }
+          details: { count: (result.imported || result.length || 0) }
         });
       } catch (error) {
         console.error('Import failed:', error);
@@ -130,7 +131,7 @@ const ChemicalsList = ({ setSelectedItem, setCurrentView, userRole, refreshData 
   // Handle adding a new chemical
   const handleAddChemical = async (createdChemical) => {
     try {
-      setChemicals([...chemicals, createdChemical]);
+      // Creation handled optimistically via `createChemical` in the AddChemical component
       addAuditLog({
         type: 'chemical',
         action: 'add',

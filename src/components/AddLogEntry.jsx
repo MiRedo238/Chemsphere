@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Save, X, User, Calendar, FlaskConical, Microscope, MapPin } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { logChemicalUsage } from '../services/usageLogService';
-import { createChemical, updateChemicalQuantity } from '../services/chemicalService'; 
+import { useContext } from 'react';
+import { DatabaseContext } from '../contexts/DatabaseContext';
 
 // Constants
 const CHEMICAL_TYPES = [
@@ -45,7 +45,7 @@ const getInitialFormData = () => ({
   location: ''
 });
 
-const AddLogEntry = ({ 
+  const AddLogEntry = ({ 
   onSave, 
   onCancel, 
   chemicals, 
@@ -55,6 +55,7 @@ const AddLogEntry = ({
   addAuditLog, 
   refreshData 
 }) => {
+  const { createChemical, updateChemicalQuantity, logUsage } = useContext(DatabaseContext);
   const [formData, setFormData] = useState(getInitialFormData);
   const [selectedChemicalType, setSelectedChemicalType] = useState('inventory');
   const [loading, setLoading] = useState(false);
@@ -272,7 +273,7 @@ const AddLogEntry = ({
         await Promise.all(openedChemicalPromises);
         
         // Then log the usage
-        await logChemicalUsage(usageData);
+        await logUsage(usageData);
         await refreshData();
 
         // Add audit log for log entry creation

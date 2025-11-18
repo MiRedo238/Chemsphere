@@ -4568,3 +4568,145 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
+
+/* Radio grid for location selection in AddChemical */
+.radio-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 16px 0;
+}
+
+.radio-grid {
+  display: flex;
+  gap: 10px;
+  flex-direction: column; /* vertical stack */
+  margin: 10px 0 16px 0;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s ease, box-shadow 0.12s ease;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  position: relative;
+  width: 100%; /* full-width */
+  justify-content: flex-start; /* icon then label */
+}
+
+.radio-option input[type="radio"] {
+  /* keep input accessible but visually hidden; make full-area clickable */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.radio-option .radio-color {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+  flex: none;
+  position: relative;
+  display: inline-block;
+  /* Subtle base look: slightly desaturated via reduced opacity */
+  opacity: 0.95;
+}
+
+.radio-option:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0,0,0,0.06);
+}
+
+/* Checked state: style the color square and the label text */
+.radio-option input[type="radio"]:checked + .radio-color,
+.radio-option input[type="radio"]:checked ~ .radio-color {
+  transform: none;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.16) inset;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* Checkmark inside color square when selected */
+.radio-color .radio-check {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-40%, -40%) scale(0.85); /* slight overlap */
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease, color 0.12s ease;
+  color: #fff;
+}
+
+/* Show SVG check when selected */
+.radio-option input[type="radio"]:checked + .radio-color .radio-check,
+.radio-option input[type="radio"]:checked ~ .radio-color .radio-check {
+  opacity: 1;
+  transform: translate(-40%, -40%) scale(1.08);
+}
+
+/* For corrosive (white) square, use dark check for contrast */
+.radio-option.corrosive input[type="radio"]:checked + .radio-color .radio-check,
+.radio-option.corrosive input[type="radio"]:checked ~ .radio-color .radio-check {
+  color: #333;
+}
+
+.radio-option input[type="radio"]:checked + .radio-color + span,
+.radio-option input[type="radio"]:checked ~ .radio-color + span {
+  font-weight: 600;
+  color: #111;
+}
+
+/* Focus indicator for keyboard users */
+.radio-option input[type="radio"]:focus + .radio-color {
+  outline: 2px solid rgba(59,130,246,0.18);
+  outline-offset: 2px;
+}
+
+.radio-color.flammable { background: #ef4444; }
+.radio-color.health { background: #3b82f6; }
+.radio-color.reactive { background: #facc15; }
+.radio-color.corrosive { background: #ffffff; border: 1px solid #ddd; }
+.radio-color.moderate { background: #9ca3af; }
+
+/* Modern browsers: tint the whole pill when selected using :has() */
+@supports(selector(:has(*))) {
+  /* stronger tint: increase alpha for clearer selected state */
+  .radio-option.flammable:has(input:checked) {
+    background: rgba(239,68,68,0.22);
+    border-color: rgba(239,68,68,0.34);
+  }
+  .radio-option.health:has(input:checked) {
+    background: rgba(59,130,246,0.18);
+    border-color: rgba(59,130,246,0.30);
+  }
+  .radio-option.reactive:has(input:checked) {
+    background: rgba(250,204,21,0.18);
+    border-color: rgba(250,204,21,0.30);
+  }
+  .radio-option.corrosive:has(input:checked) {
+    background: rgba(255,255,255,0.95);
+    border-color: rgba(0,0,0,0.1);
+  }
+  .radio-option.moderate:has(input:checked) {
+    background: rgba(156,163,175,0.18);
+    border-color: rgba(156,163,175,0.30);
+  }
+
+  /* make the selected pill slightly elevated */
+  .radio-option:has(input:checked) {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.06);
+  }
+}

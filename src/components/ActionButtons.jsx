@@ -4,39 +4,23 @@ import Modal from './Modal';
 import AddChemical from './AddChemical';
 import AddEquipment from './AddEquipment';
 
-const ActionButtons = ({ 
-  onAddChemical, 
-  onAddEquipment, 
-  chemicals, 
-  equipment, 
-  updateChemicals, 
-  updateEquipment, 
-  addAuditLog, 
-  userRole,
-  refreshData 
-}) => {
+const ActionButtons = ({ userRole, loading, onCancel }) => {
   const [showChemicalModal, setShowChemicalModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
 
-  const handleChemicalAdded = (newChemical) => {
-    if (updateChemicals) {
-      updateChemicals([...chemicals, newChemical]);
-    }
-    if (onAddChemical) {
-      onAddChemical(newChemical);
-    }
-    setShowChemicalModal(false);
-  };
-
-  const handleEquipmentAdded = (newEquipment) => {
-    if (updateEquipment) {
-      updateEquipment([...equipment, newEquipment]);
-    }
-    if (onAddEquipment) {
-      onAddEquipment(newEquipment);
-    }
-    setShowEquipmentModal(false);
-  };
+  // If onCancel is provided, render form action buttons (used inside forms)
+  if (typeof onCancel === 'function') {
+    return (
+      <div className="form-actions flex justify-end gap-2 pt-4">
+        <button type="button" className="form-button bg-gray-500" onClick={onCancel} disabled={loading}>
+          Cancel
+        </button>
+        <button type="submit" className="form-button" disabled={loading}>
+          {loading ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -66,13 +50,9 @@ const ActionButtons = ({
         title="Add New Chemical"
       >
         <AddChemical 
-          chemicals={chemicals}
-          updateChemicals={handleChemicalAdded}
-          addAuditLog={addAuditLog}
           userRole={userRole}
           isModal={true}
           onClose={() => setShowChemicalModal(false)}
-          refreshData={refreshData}
         />
       </Modal>
 
@@ -83,9 +63,6 @@ const ActionButtons = ({
         title="Add New Equipment"
       >
         <AddEquipment 
-          equipment={equipment}
-          updateEquipment={handleEquipmentAdded}
-          addAuditLog={addAuditLog}
           userRole={userRole}
           isModal={true}
           onClose={() => setShowEquipmentModal(false)}

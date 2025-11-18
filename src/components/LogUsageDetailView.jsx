@@ -3,7 +3,6 @@ import React, { useState, useContext } from 'react';
 import { ChevronLeft, Edit, Trash2, Save, X, User, Calendar, FlaskConical, Microscope, MapPin } from 'lucide-react';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 import { useAuth } from '../contexts/AuthContext';
-import { updateChemicalUsageLog, deleteChemicalUsageLog } from '../services/usageLogService';
 
 const LogUsageDetailView = ({ selectedLog, setCurrentView, userRole, refreshData }) => {
   const [editing, setEditing] = useState(false);
@@ -11,7 +10,7 @@ const LogUsageDetailView = ({ selectedLog, setCurrentView, userRole, refreshData
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { addAuditLog } = useContext(DatabaseContext);
+  const { addAuditLog, updateUsageLog, deleteUsageLog, fetchUsageLogs } = useContext(DatabaseContext);
   const { user: authUser } = useAuth();
 
   // Initialize edit form with data validation
@@ -56,7 +55,7 @@ const LogUsageDetailView = ({ selectedLog, setCurrentView, userRole, refreshData
         location: editForm.location || null,
       };
 
-      await updateChemicalUsageLog(selectedLog.id, updateData);
+      await updateUsageLog(selectedLog.id, updateData);
 
       addAuditLog({
         type: 'usage_log',
@@ -69,13 +68,13 @@ const LogUsageDetailView = ({ selectedLog, setCurrentView, userRole, refreshData
           user: selectedLog.user_name || selectedLog.userName
         }
       });
-
-      await refreshData();
-      setEditing(false);
-      
+      // Ensure we have the latest server-normalized data if caller expects it
       if (refreshData) {
         await refreshData();
+      } else {
+        await fetchUsageLogs(true);
       }
+      setEditing(false);
     } catch (error) {
       console.error('Error updating log:', error);
       setError('Failed to update log. Please try again.');
@@ -89,8 +88,8 @@ const LogUsageDetailView = ({ selectedLog, setCurrentView, userRole, refreshData
 
     try {
       setLoading(true);
-      await deleteChemicalUsageLog(selectedLog.id);
-      
+      await deleteUsageLog(selectedLog.id);
+
       addAuditLog({
         type: 'usage_log',
         action: 'delete',
@@ -102,8 +101,11 @@ const LogUsageDetailView = ({ selectedLog, setCurrentView, userRole, refreshData
           user: selectedLog.user_name || selectedLog.userName
         }
       });
-      
-      await refreshData();
+      if (refreshData) {
+        await refreshData();
+      } else {
+        await fetchUsageLogs(true);
+      }
       setCurrentView('log-usage');
     } catch (error) {
       console.error('Error deleting log:', error);

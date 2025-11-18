@@ -5,10 +5,10 @@ import { csvService } from '../services/csvService';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 import { safetyColors, ghsSymbols } from '../utils/data';
 import { normalizeGhsSymbols, filterChemicals, sortItems, getChemicalSortOptions, exportToCSV} from '../utils/helpers';
-import { importChemicals } from '../services/api';
+// import handled via DatabaseContext import wrapper
 
 const ExpiredChemicals = ({ setSelectedItem, setCurrentView, userRole, refreshData }) => {
-  const { chemicals, loading, addAuditLog } = useContext(DatabaseContext);
+  const { chemicals, loading, addAuditLog, importChemicals } = useContext(DatabaseContext);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('all');
@@ -73,10 +73,10 @@ const ExpiredChemicals = ({ setSelectedItem, setCurrentView, userRole, refreshDa
     if (file) {
       try {
         setImportLoading(true);
-        const result = await importChemicals(file);
-        if (refreshData) {
-          await refreshData();
-        }
+        // Parse CSV into array of objects, then import via DatabaseContext wrapper
+        const parsed = await csvService.parseCSV(file);
+        const result = await importChemicals(parsed);
+        if (refreshData) await refreshData();
         if (addAuditLog) {
           addAuditLog({
             type: 'chemical',

@@ -1,7 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { ChevronLeft, Microscope } from 'lucide-react';
 import Autocomplete from './Autocomplete';
-import { createEquipment } from '../services/api';
 import { DatabaseContext } from '../contexts/DatabaseContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -11,7 +10,7 @@ const AddEquipment = ({
   isModal, 
   onClose 
 }) => {
-  const { equipment, setEquipment, addAuditLog} = useContext(DatabaseContext);
+  const { equipment, createEquipment, addAuditLog } = useContext(DatabaseContext);
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
@@ -49,10 +48,7 @@ const AddEquipment = ({
         equipment_condition: formData.equipment_condition
         });
         
-        // Replace updateEquipment with setEquipment
-        if (setEquipment) {
-        setEquipment(prevEquipment => [...prevEquipment, newEquipment]);
-        }
+        // optimistic createEquipment already updated the cache
         
         if (addAuditLog) {
             addAuditLog({

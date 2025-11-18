@@ -3,16 +3,9 @@ import React, { useState, useEffect, useContext } from 'react';
 import { ChevronLeft, Edit, Trash2, User, MapPin, Clock, Microscope, StickyNote } from 'lucide-react';
 import { safetyColors, statusColors, ghsSymbols } from '../utils/data';
 import { formatDate, normalizeGhsSymbols } from '../utils/helpers';
-import { 
-  updateChemical as apiUpdateChemical, 
-  deleteChemical as apiDeleteChemical, 
-  updateEquipment as apiUpdateEquipment, 
-  deleteEquipment as apiDeleteEquipment,
-} from '../services/api';
-import { getChemicalUsageLogs } from '../services/usageLogService';
+// usage logs will be retrieved from DatabaseContext cache
 import { DatabaseContext } from '../contexts/DatabaseContext';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase/supabaseClient';
 
 // Helper function to get user display name (same as in Sidebar and LogChemicalUsage)
 const getUserDisplayName = (user) => {
@@ -85,8 +78,8 @@ const DetailView = ({
   const [editForm, setEditForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [usageLogs, setUsageLogs] = useState([]);
-  const { addAuditLog } = useContext(DatabaseContext);
+  const [usageLogsLocal, setUsageLogsLocal] = useState([]);
+  const { usageLogs, fetchUsageLogs, addAuditLog, updateChemical: ctxUpdateChemical, deleteChemical: ctxDeleteChemical, updateEquipment: ctxUpdateEquipment, deleteEquipment: ctxDeleteEquipment } = useContext(DatabaseContext);
   const { user } = useAuth();
   
   const isAdmin = userRole === 'admin';
@@ -128,111 +121,32 @@ const DetailView = ({
     );
   };
 
-  // Fetch usage logs for chemical using the correct approach from usageLogService
-  const fetchChemicalUsageLogs = async (chemicalId) => {
-    try {
-      console.log('🔍 Fetching usage logs for chemical:', chemicalId);
-      
-      // Get chemical usage records from chemical_usage table
-      const { data: chemicalUsages, error: usageError } = await supabase
-        .from('chemical_usage')
-        .select('*')
-        .eq('chemical_id', chemicalId);
-
-      if (usageError) throw usageError;
-
-      // Get usage log details for each chemical usage
-      const logsWithDetails = await Promise.all(
-        (chemicalUsages || []).map(async (usage) => {
-          const { data: usageLog } = await supabase
-            .from('usage_logs')
-            .select('*')
-            .eq('id', usage.usage_log_id)
-            .single();
-
-          return {
-            ...usage,
-            ...usageLog, // Merge usage log data
-            quantity: usage.quantity,
-            unit: usage.unit,
-            opened: usage.opened,
-            remaining_amount: usage.remaining_amount
-          };
-        })
-      );
-
-      console.log('✅ Chemical usage logs fetched:', logsWithDetails);
-      return logsWithDetails || [];
-    } catch (error) {
-      console.error('Failed to fetch chemical usage logs:', error);
-      return [];
+  // Use cached usage logs from DatabaseContext and filter for the selected item
+  const logMatchesChemical = (log, chemicalId) => {
+    if (!log) return false;
+    if (Array.isArray(log.chemical_usages)) {
+      return log.chemical_usages.some(cu => cu.chemical_id === chemicalId || cu.chemical_id === String(chemicalId));
     }
+    if (Array.isArray(log.chemicals)) {
+      return log.chemicals.some(c => c.chemical_id === chemicalId || c.id === chemicalId || c.chemical_id === String(chemicalId) || c.id === String(chemicalId));
+    }
+    if (Array.isArray(log.chemicals_used)) {
+      return log.chemicals_used.some(c => c.chemical_id === chemicalId || c.chemical_id === String(chemicalId));
+    }
+    // fallback: some APIs include a single chemical id
+    return log.chemical_id === chemicalId || log.chemical_id === String(chemicalId);
   };
 
-  // Fetch equipment usage logs with proper data structure
-  const fetchEquipmentUsageLogs = async (equipmentId) => {
-    try {
-      console.log('🔍 Fetching usage logs for equipment:', equipmentId);
-      
-      // Get equipment usage records from usage_log_equipment table
-      const { data: equipmentLinks, error: linkError } = await supabase
-        .from('usage_log_equipment')
-        .select('*')
-        .eq('equipment_id', equipmentId);
-
-      if (linkError) throw linkError;
-
-      // Get usage log details for each equipment usage
-      const logsWithDetails = await Promise.all(
-        (equipmentLinks || []).map(async (link) => {
-          const { data: usageLog } = await supabase
-            .from('usage_logs')
-            .select('*')
-            .eq('id', link.usage_log_id)
-            .single();
-
-          if (!usageLog) return null;
-
-          // For equipment, we also want to get any chemical usage in the same log to show context
-          const { data: chemicalUsages } = await supabase
-            .from('chemical_usage')
-            .select('chemical_id, quantity, unit')
-            .eq('usage_log_id', link.usage_log_id);
-
-          // Get chemical names for the usage
-          const chemicalsWithDetails = await Promise.all(
-            (chemicalUsages || []).map(async (usage) => {
-              const { data: chemical } = await supabase
-                .from('chemicals')
-                .select('name')
-                .eq('id', usage.chemical_id)
-                .single();
-
-              return {
-                ...usage,
-                chemical_name: chemical?.name || 'Unknown Chemical'
-              };
-            })
-          );
-
-          return {
-            ...usageLog,
-            equipment_usage_id: link.id,
-            chemicals_used: chemicalsWithDetails
-          };
-        })
-      );
-
-      // Filter out null values and sort by date
-      const validLogs = logsWithDetails.filter(log => log !== null)
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-      console.log('✅ Equipment usage logs fetched:', validLogs);
-      return validLogs;
-    } catch (error) {
-      console.error('Failed to fetch equipment usage logs:', error);
-      return [];
+  const logMatchesEquipment = (log, equipmentId) => {
+    if (!log) return false;
+    if (Array.isArray(log.equipment) ) {
+      return log.equipment.some(e => e.equipment_id === equipmentId || e.id === equipmentId || e.equipment_id === String(equipmentId) || e.id === String(equipmentId));
     }
+    if (Array.isArray(log.equipment_used)) {
+      return log.equipment_used.some(e => e.equipment_id === equipmentId || e.equipment_id === String(equipmentId));
+    }
+    if (log.equipment_id) return log.equipment_id === equipmentId || log.equipment_id === String(equipmentId);
+    return false;
   };
 
   // Effects
@@ -242,13 +156,21 @@ const DetailView = ({
       
       // Fetch usage logs when item is selected
       const loadUsageLogs = async () => {
-        let logs = [];
-        if (isChemical) {
-          logs = await fetchChemicalUsageLogs(selectedItem.id);
-        } else {
-          logs = await fetchEquipmentUsageLogs(selectedItem.id);
+        // Ensure we have the cache populated
+        if (!usageLogs || usageLogs.length === 0) {
+          await fetchUsageLogs(true);
         }
-        setUsageLogs(logs);
+
+        const id = selectedItem.id;
+        let filtered = [];
+        if (isChemical) {
+          filtered = (usageLogs || []).filter(log => logMatchesChemical(log, id));
+        } else {
+          filtered = (usageLogs || []).filter(log => logMatchesEquipment(log, id));
+        }
+        // sort by date desc
+        filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setUsageLogsLocal(filtered);
       };
       loadUsageLogs();
     }
@@ -292,18 +214,14 @@ const DetailView = ({
       let updatedItem;
       let auditData;
 
-      if (isChemical) {
+        if (isChemical) {
         console.log('🧪 Updating chemical...');
-        updatedItem = await apiUpdateChemical(selectedItem.id, cleanData);
+        updatedItem = await ctxUpdateChemical(selectedItem.id, cleanData);
         console.log('✅ Chemical update response:', updatedItem);
         
         if (!updatedItem?.id) {
           throw new Error('Failed to update chemical: Invalid response from server');
         }
-        
-        updateChemicals(chemicals.map(chem => 
-          chem.id === selectedItem.id ? updatedItem : chem
-        ));
         
         auditData = {
           type: 'chemical',
@@ -315,16 +233,12 @@ const DetailView = ({
         };
       } else {
         console.log('🔧 Updating equipment...');
-        updatedItem = await apiUpdateEquipment(selectedItem.id, cleanData);
+        updatedItem = await ctxUpdateEquipment(selectedItem.id, cleanData);
         console.log('✅ Equipment update response:', updatedItem);
         
         if (!updatedItem) {
           throw new Error('Failed to update equipment: Empty response from server');
         }
-        
-        updateEquipment(equipment.map(eq => 
-          eq.id === selectedItem.id ? { ...updatedItem, type: 'equipment' } : eq
-        ));
         
         auditData = {
           type: 'equipment',
@@ -364,8 +278,8 @@ const DetailView = ({
       let auditData;
 
       if (isChemical) {
-        await apiDeleteChemical(selectedItem.id);
-        updateChemicals(chemicals.filter(chem => chem.id !== selectedItem.id));
+        await ctxDeleteChemical(selectedItem.id);
+        // cache already updated by ctxDeleteChemical
         auditData = {
           type: 'chemical',
           action: 'delete',
@@ -375,8 +289,8 @@ const DetailView = ({
           details: { batchNumber: selectedItem.batch_number }
         };
       } else {
-        await apiDeleteEquipment(selectedItem.id);
-        updateEquipment(equipment.filter(eq => eq.id !== selectedItem.id));
+        await ctxDeleteEquipment(selectedItem.id);
+        // cache already updated by ctxDeleteEquipment
         auditData = {
           type: 'equipment',
           action: 'delete',
@@ -688,7 +602,7 @@ const DetailView = ({
       <div>
         <h3 className="detail-section-title">{title}</h3>
         <div className="log-container">
-          {usageLogs?.map((log, index) => (
+          {usageLogsLocal?.map((log, index) => (
             <div key={index} className="log-item">
               <div className="log-header">
                 <div>

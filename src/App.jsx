@@ -125,10 +125,7 @@ function DashboardContent() {
     }
   }, [activeSection]);
 
-  useEffect(() => {
-    if (fetchChemicals) fetchChemicals();
-    if (fetchEquipment) fetchEquipment();
-  }, [fetchChemicals, fetchEquipment]);
+  // No automatic fetch here — DatabaseContext loads data and keeps it in sync
 
   const [previousView, setPreviousView] = useState('chemicals'); 
   
@@ -224,7 +221,6 @@ function DashboardContent() {
             setSelectedItem={(item) => handleSetSelectedItem(item, 'equipment')}
             setCurrentView={handleSetCurrentView}
             userRole={userRole}
-            updateEquipment={updateEquipmentList}
             addAuditLog={addAuditLog}
           />
         );
@@ -237,8 +233,6 @@ function DashboardContent() {
             userRole={userRole}
             chemicals={chemicals}
             equipment={equipment}
-            updateChemicals={updateChemicals}
-            updateEquipment={updateEquipmentList}
             addAuditLog={addAuditLog}
             refreshData={refreshData}
           />
@@ -281,7 +275,6 @@ function DashboardContent() {
             setSelectedItem={(item) => handleSetSelectedItem(item, 'expired-chemicals')}
             setCurrentView={setCurrentView}
             userRole={userRole}
-            updateChemicals={setChemicals}
             addAuditLog={addAuditLog}
             refreshData={refreshData}
           />
